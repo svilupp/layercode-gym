@@ -52,6 +52,7 @@ ignore_missing_imports = true
 [dependency-groups]
 dev = [
     "mypy>=1.18.2",
+    "ruff>=0.8.0",
 ]
 docs = [
     "mkdocs>=1.6.0",

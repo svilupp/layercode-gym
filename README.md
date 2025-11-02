@@ -453,12 +453,10 @@ Planned enhancements:
 
 ### Additional Simulators
 - CSV-driven scenarios
-- Interrupt patterns (barge-in testing)
 - Multi-language personas
 
 ### Evaluation Tools
 - Built-in scoring metrics
-- A/B testing framework
 - Regression detection
 
 ## Related Projects

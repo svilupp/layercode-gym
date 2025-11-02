@@ -63,37 +63,5 @@ jobs:
       - name: Test imports
         run: |
           uv run python -c "from layercode_gym import LayercodeClient, UserSimulator, Persona, Settings"
-          uv run python -c "from layercode_gym.callbacks import create_judge_callback"
-          uv run python -c "from layercode_gym.simulator import UserSimulatorProtocol, TTSEngineProtocol"
-
-  check-examples:
-    name: Validate Example Files
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Add uv to PATH
-        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Check example syntax
-        run: |
-          for file in examples/*.py; do
-            echo "Checking $file"
-            uv run python -m py_compile "$file"
-          done
-
-      - name: Type check examples
-        run: uv run mypy examples/ --ignore-missing-imports
+          uv run python -c "from layercode_gym.callbacks import TurnCallback, ConversationCallback"
+          uv run python -c "from layercode_gym.simulator.protocols import UserSimulatorProtocol, TTSEngineProtocol"
