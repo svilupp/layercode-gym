@@ -1,2 +1,353 @@
-# layercode-gym
-Unofficial utilities for Layercode Voice Agents
+# LayerCode Gym
+
+[![CI](https://github.com/svilupp/layercode-gym/actions/workflows/ci.yml/badge.svg)](https://github.com/svilupp/layercode-gym/actions/workflows/ci.yml)
+[![Docs](https://github.com/svilupp/layercode-gym/actions/workflows/docs.yml/badge.svg)](https://github.com/svilupp/layercode-gym/actions/workflows/docs.yml)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://svilupp.github.io/layercode-gym)
+
+**Does your voice AI agent even lift, bro?**
+
+> **Warning (v0.0.1-alpha):** This toolkit is an early alpha and may contain bugs or breaking changes. Please test thoroughly before using in production.
+
+This is an **unofficial** testing gym for voice AI agents built on [Layercode.com](https://layercode.com). Quickly spin up a testing environment to run through hundreds of scenarios and understand how your agent will perform in production.
+
+Perfect for regression testing, load testing, and automated evaluation of your voice AI agents.
+
+## Features
+
+- **Three User Simulator Types**: Fixed text, pre-recorded audio, or AI-driven personas
+- **Captured Analytics**: Full transcripts with TTFAB, latency stats, and audio recordings
+- **LogFire Integration**: Real-time observability and debugging
+- **Batch Testing**: Run hundreds of conversations concurrently
+- **CLI & Python API**: Quick testing via CLI or programmatic control
+- **LLM-as-Judge**: Bring your own quality evaluation with customizable criteria as a conversational hook
+
+See `examples/` for reference!
+
+## Quick Start
+
+**Prerequisites:** Backend server configured in [Layercode dashboard](https://dash.layercode.com).
+
+No server yet? Launch one quickly:
+```bash
+uvx layercode-create-app run --tunnel
+# Displays tunnel URL to enter in Layercode dashboard
+```
+
+### CLI Quick Test (No Installation)
+
+```bash
+# Set environment
+export SERVER_URL="http://localhost:8001"
+export LAYERCODE_AGENT_ID="your_agent_id"
+
+# Run instantly with uvx (no installation)
+uvx layercode-gym --text "Hello, I need help with my account"
+
+# Multiple messages
+uvx layercode-gym --text "Hi" --text "Tell me more" --text "Goodbye"
+
+# Audio file
+uvx layercode-gym --file recording.wav
+
+# AI agent with persona
+uvx layercode-gym --agent \
+  --persona-background "You are a frustrated customer" \
+  --persona-intent "Cancel your subscription"
+```
+
+Run `uvx layercode-gym --help` for all options.
+
+### Python API
+
+```bash
+# Install
+uv add layercode-gym
+
+# Set environment
+export SERVER_URL="http://localhost:8001"
+export LAYERCODE_AGENT_ID="your_agent_id"
+export OPENAI_API_KEY="sk-..."  # For TTS and AI personas
+```
+
+```python
+from layercode_gym import LayercodeClient, UserSimulator
+
+# Simple text messages
+simulator = UserSimulator.from_text(
+    messages=["Hello!", "Tell me about pricing", "Thank you"],
+    send_as_text=True
+)
+
+client = LayercodeClient(simulator=simulator)
+conversation_id = await client.run()
+```
+
+## Architecture
+
+```
+┌─────────────┐                    ┌──────────────┐
+│  Your Test  │──1. Authorize──────▶│ Your Backend │
+│    Code     │                     │   Server     │
+└─────────────┘                     └──────────────┘
+       │                                    │
+       │                             2. Return
+       │                           client_session_key
+       │                                    │
+       └──────3. Connect with key───────────┘
+                      │
+                      ▼
+              ┌──────────────┐
+              │  Layercode   │
+              │   Platform   │
+              └──────────────┘
+```
+
+**Flow:**
+1. Client authorizes through YOUR backend server (`SERVER_URL`)
+2. Backend returns `client_session_key` from LayerCode
+3. Client connects to LayerCode WebSocket with that key
+
+The client never hits LayerCode's API directly - it always goes through your backend first.
+
+## User Simulators
+
+Three types for different testing needs:
+
+### 1. Fixed Text Messages
+Fastest option, perfect for regression testing:
+```python
+simulator = UserSimulator.from_text(
+    messages=["Hello", "Tell me more", "Goodbye"],
+    send_as_text=True  # or False to use TTS
+)
+```
+
+### 2. Pre-recorded Audio Files
+Test transcription and audio handling:
+```python
+from pathlib import Path
+
+simulator = UserSimulator.from_files(
+    files=[Path("greeting.wav"), Path("question.wav")]
+)
+```
+
+### 3. AI Agent Personas
+Realistic, dynamic conversations using PydanticAI:
+```python
+from layercode_gym import Persona
+
+simulator = UserSimulator.from_agent(
+    persona=Persona(
+        background_context="You are a 35-year-old small business owner",
+        intent="You want to understand pricing and features"
+    ),
+    model="openai:gpt-4o-mini",
+    max_turns=5
+)
+```
+
+## Examples
+
+The `examples/` directory contains ready-to-run scripts:
+
+- **01_text_messages.py** - Simple text conversation for quick testing
+- **02_audio_file.py** - Stream pre-recorded audio to test transcription
+- **03_agent_persona.py** - AI-driven user with dynamic responses
+- **04_callbacks_judge.py** - Automated quality evaluation with LLM judge
+- **05_batch_evaluation.py** - Run multiple conversations concurrently
+
+Run any example:
+```bash
+python examples/01_text_messages.py
+```
+
+See [full documentation](https://svilupp.github.io/layercode-gym/examples) for detailed explanations.
+
+## LLM-as-Judge Evaluation
+
+Automatically evaluate conversation quality:
+
+```python
+from layercode_gym.callbacks import create_judge_callback
+
+judge = create_judge_callback(
+    criteria=[
+        "Did the agent answer all user questions?",
+        "Was the agent polite and professional?",
+        "Did the conversation flow naturally?"
+    ],
+    model="openai:gpt-4o"
+)
+
+client = LayercodeClient(
+    simulator=simulator,
+    turn_callback=judge
+)
+```
+
+Results saved to `conversations/<id>/judge_results.json` with scores and feedback.
+
+## Batch Testing
+
+Run hundreds of conversations concurrently:
+
+```python
+import asyncio
+from tqdm.asyncio import tqdm_asyncio
+
+scenarios = ["Message 1", "Message 2", "Message 3"]
+tasks = [run_conversation(msg) for msg in scenarios]
+
+results = await tqdm_asyncio.gather(*tasks, desc="Running conversations")
+```
+
+See `examples/05_batch_evaluation.py` for the complete pattern.
+
+## Conversation Outputs
+
+After each conversation:
+
+```
+conversations/<conversation_id>/
+├── transcript.json          # Full log with timing metrics
+├── conversation_mix.wav     # Combined audio (user + assistant)
+├── user_0.wav              # Individual user turns
+├── assistant_0.wav         # Individual assistant turns
+└── judge_results.json      # LLM evaluation (if enabled)
+```
+
+Transcript includes TTFAB, latency stats, turn counts, and full message history.
+
+## Custom Implementations
+
+### Custom TTS Engine
+
+```python
+from layercode_gym.simulator import TTSEngineProtocol
+from pathlib import Path
+
+class MyTTSEngine(TTSEngineProtocol):
+    async def synthesize(self, text: str, **kwargs) -> Path:
+        # Your TTS service (ElevenLabs, Azure, etc.)
+        return audio_file_path
+
+simulator = UserSimulator.from_text(
+    messages=["Hello!"],
+    send_as_text=False,
+    tts_engine=MyTTSEngine()
+)
+```
+
+### Custom LLM for Agents
+
+Use any LLM supported by PydanticAI. **Important:** You must define the system prompt with proper placeholders.
+
+```python
+from pydantic_ai import Agent
+from textprompts import TextTemplates
+
+# Load the required prompt template
+templates = TextTemplates("src/layercode_gym/simulator/prompts")
+system_prompt = templates.render(
+    "basic_agent.txt",
+    background_context="Your background",
+    intent="Your intent"
+)
+
+# Create custom agent with proper system prompt
+agent = Agent(
+    "anthropic:claude-3-5-sonnet",
+    system_prompt=system_prompt
+)
+
+simulator = UserSimulator.from_agent(agent=agent, deps=my_deps)
+```
+
+**Available models:**
+- `openai:gpt-4o` / `openai:gpt-4o-mini`
+- `anthropic:claude-3-5-sonnet`
+- `ollama:llama3` (local)
+- `gemini:gemini-1.5-pro`
+
+**Prompt requirements:** The system prompt must include `{background_context}` and `{intent}` placeholders. See `src/layercode_gym/simulator/prompts/basic_agent.txt` for the default template.
+
+### Custom Simulator
+
+Full control via protocol implementation:
+
+```python
+from layercode_gym.simulator import UserSimulatorProtocol, UserRequest, UserResponse
+
+class MyCustomSimulator(UserSimulatorProtocol):
+    async def get_response(self, request: UserRequest) -> UserResponse | None:
+        # Your logic here
+        return UserResponse(text="Hello!", audio_path=None, data=())
+```
+
+## Environment Variables
+
+**Required:**
+```bash
+SERVER_URL="http://localhost:8001"       # Your backend server
+LAYERCODE_AGENT_ID="your_agent_id"       # LayerCode agent ID
+```
+
+**Optional:**
+```bash
+OPENAI_API_KEY="sk-..."                  # For TTS and AI agents
+OPENAI_TTS_MODEL="gpt-4o-mini-tts"       # TTS model
+OPENAI_TTS_VOICE="coral"                 # Voice (alloy, echo, fable, onyx, nova, shimmer, coral)
+LAYERCODE_OUTPUT_ROOT="./conversations"  # Save location
+LOGFIRE_TOKEN="..."                      # Enable LogFire observability
+```
+
+## LogFire Integration
+
+Real-time observability and debugging with [LogFire](https://logfire.pydantic.dev/):
+
+```bash
+export LOGFIRE_TOKEN="your_token_here"
+```
+
+Automatically instruments PydanticAI and OpenAI calls, providing:
+- Real-time conversation tracking
+- Performance metrics and spans
+- Error tracking with stack traces
+- Beautiful UI for exploring conversations
+
+## Type Safety
+
+Enforces `mypy --strict` throughout. All event schemas use `TypedDict` or dataclasses.
+
+```bash
+uv run mypy src/layercode_gym
+```
+
+## Related Projects
+
+- **[layercode-create-app](https://github.com/svilupp/layercode-create-app)** - CLI to scaffold LayerCode backends with tunneling
+- **[layercode-examples](https://github.com/svilupp/layercode-examples)** - Agent patterns and integration recipes
+
+## Documentation
+
+Full documentation at [svilupp.github.io/layercode-gym](https://svilupp.github.io/layercode-gym)
+
+- [Getting Started](https://svilupp.github.io/layercode-gym/getting-started)
+- [Core Concepts](https://svilupp.github.io/layercode-gym/concepts)
+- [Examples](https://svilupp.github.io/layercode-gym/examples)
+- [API Reference](https://svilupp.github.io/layercode-gym/api-reference)
+- [Advanced Usage](https://svilupp.github.io/layercode-gym/advanced)
+
+## Contributing
+
+This is a minimal, focused toolkit. Extensions should be done via:
+- Custom simulator strategies (implement `UserSimulatorProtocol`)
+- Custom callbacks (implement `TurnCallback` or `ConversationCallback`)
+- Custom TTS engines (implement `TTSEngineProtocol`)
+
+Keep the core simple and extensible.
+
+## License
+
+MIT - See [LICENSE](LICENSE) file for details.
