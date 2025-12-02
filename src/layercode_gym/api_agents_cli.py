@@ -35,7 +35,7 @@ import argparse
 import json
 import os
 import sys
-from typing import Sequence
+from typing import Any, Sequence, cast
 
 from layercode_gym.api_agents_utils import main_get, main_list, main_update
 
@@ -184,7 +184,7 @@ def get_api_key(args: argparse.Namespace) -> str:
     return api_key
 
 
-def build_update_data(args: argparse.Namespace) -> dict:
+def build_update_data(args: argparse.Namespace) -> dict[str, Any]:
     """Build update data dict from args.
 
     Args:
@@ -206,7 +206,7 @@ def build_update_data(args: argparse.Namespace) -> dict:
             sys.exit(1)
 
         try:
-            return json.loads(args.json_data)
+            return cast(dict[str, Any], json.loads(args.json_data))
         except json.JSONDecodeError as e:
             print(f"Error: Invalid JSON data - {e}", file=sys.stderr)
             sys.exit(1)

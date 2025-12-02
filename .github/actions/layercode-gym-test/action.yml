@@ -45,10 +45,6 @@ inputs:
     description: 'LayerCode agent ID from your dashboard'
     required: true
 
-  layercode-api-key:
-    description: 'LayerCode API key for webhook configuration'
-    required: true
-
   openai-api-key:
     description: 'OpenAI API key for AI personas and TTS'
     required: true
@@ -116,7 +112,6 @@ runs:
       env:
         SERVER_URL: ${{ inputs.server-url }}
         LAYERCODE_AGENT_ID: ${{ inputs.layercode-agent-id }}
-        LAYERCODE_API_KEY: ${{ inputs.layercode-api-key }}
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
         LOGFIRE_TOKEN: ${{ inputs.logfire-token }}
         PERSONAS: ${{ inputs.personas }}
@@ -126,8 +121,8 @@ runs:
         FAIL_ON_JUDGE_FAILURE: ${{ inputs.fail-on-judge-failure }}
         MODEL: ${{ inputs.model }}
       run: |
-        # Run the orchestration script using uvx
-        uvx --from layercode-gym python ${{ github.action_path }}/runner.py
+        # Install layercode-gym and run the orchestration script
+        uv run --with layercode-gym ${{ github.action_path }}/runner.py
 
     - name: Upload conversation artifacts
       if: inputs.upload-artifacts == 'true' && always()

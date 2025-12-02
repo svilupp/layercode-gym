@@ -423,11 +423,11 @@ async def custom_callback(
 ) -> None:
     # Check for specific keywords
     if "error" in agent_message.lower():
-        print(f"⚠️  Agent mentioned error in turn {turn_number}")
+        print(f"WARNING: Agent mentioned error in turn {turn_number}")
 
     # Track conversation length
     if turn_number > 10:
-        print(f"⚠️  Conversation exceeding 10 turns")
+        print(f"WARNING: Conversation exceeding 10 turns")
 
     # Custom logging
     with open("conversation_log.txt", "a") as f:

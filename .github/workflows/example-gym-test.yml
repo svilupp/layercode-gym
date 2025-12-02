@@ -68,7 +68,6 @@ jobs:
           # Required secrets (set in GitHub repository settings)
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
 
           # Optional: Enable observability

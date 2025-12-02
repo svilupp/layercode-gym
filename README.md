@@ -4,11 +4,11 @@
 [![Docs](https://github.com/svilupp/layercode-gym/actions/workflows/docs.yml/badge.svg)](https://github.com/svilupp/layercode-gym/actions/workflows/docs.yml)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://svilupp.github.io/layercode-gym)
 
-**Does your voice AI agent even lift, bro?**
-
 > **Warning (v0.1.0):** This toolkit is an early release and may contain bugs or breaking changes. Please test thoroughly before using in production.
 
-This is an **unofficial** testing gym for voice AI agents built on [Layercode.com](https://layercode.com). Quickly spin up a testing environment to run through hundreds of scenarios and understand how your agent will perform in production.
+A testing toolkit for voice AI agents built on [Layercode.com](https://layercode.com). Quickly spin up a testing environment to run through hundreds of scenarios and understand how your agent will perform in production.
+
+**Note:** This is an unofficial, community-maintained project.
 
 Perfect for regression testing, load testing, and automated evaluation of your voice AI agents.
 
@@ -46,15 +46,14 @@ Run automated tests in your CI pipeline with multiple personas in parallel:
     judge-criteria: "Agent provides clear, helpful responses"
     server-url: ${{ secrets.SERVER_URL }}
     layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-    layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
     openai-api-key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
 **Features:**
-- ⚡ Run multiple personas in parallel for maximum speed
-- 🏛️ Automated quality evaluation with LLM judge
-- 📊 Detailed artifacts with transcripts and audio recordings
-- 🔍 Optional LogFire observability integration
+- Run multiple personas in parallel for maximum speed
+- Automated quality evaluation with LLM judge
+- Detailed artifacts with transcripts and audio recordings
+- Optional LogFire observability integration
 
 See [GitHub Actions documentation](docs/github-action.md) for complete setup guide.
 

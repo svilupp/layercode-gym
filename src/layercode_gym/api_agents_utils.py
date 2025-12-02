@@ -24,6 +24,8 @@ from typing import Any
 
 import httpx
 
+from layercode_gym.logging_utils import sanitize_error
+
 
 @dataclass
 class Agent:
@@ -210,10 +212,10 @@ def main_get(agent_id: str, api_key: str, json_output: bool = False) -> int:
             print(f"Error: HTTP {e.response.status_code}", file=sys.stderr)
         return 1
     except httpx.HTTPError as e:
-        print(f"Error: Network error - {e}", file=sys.stderr)
+        print(f"Error: Network error - {sanitize_error(e)}", file=sys.stderr)
         return 1
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"Error: {sanitize_error(e)}", file=sys.stderr)
         return 1
 
 
@@ -251,15 +253,16 @@ def main_update(
             print(f"Error: HTTP {e.response.status_code}", file=sys.stderr)
             try:
                 error_data = e.response.json()
-                print(f"  {error_data}", file=sys.stderr)
+                # Sanitize error response in case it contains sensitive info
+                print(f"  {sanitize_error(str(error_data))}", file=sys.stderr)
             except Exception:
                 pass
         return 1
     except httpx.HTTPError as e:
-        print(f"Error: Network error - {e}", file=sys.stderr)
+        print(f"Error: Network error - {sanitize_error(e)}", file=sys.stderr)
         return 1
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"Error: {sanitize_error(e)}", file=sys.stderr)
         return 1
 
 
@@ -284,8 +287,8 @@ def main_list(api_key: str, json_output: bool = False) -> int:
             print(f"Error: HTTP {e.response.status_code}", file=sys.stderr)
         return 1
     except httpx.HTTPError as e:
-        print(f"Error: Network error - {e}", file=sys.stderr)
+        print(f"Error: Network error - {sanitize_error(e)}", file=sys.stderr)
         return 1
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"Error: {sanitize_error(e)}", file=sys.stderr)
         return 1

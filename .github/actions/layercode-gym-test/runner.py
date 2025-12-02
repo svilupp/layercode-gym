@@ -12,13 +12,50 @@ This script orchestrates batch persona testing with optional judging:
 import asyncio
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
 
-import httpx
 from tqdm.asyncio import tqdm_asyncio
+
+
+# Patterns for sensitive data that should be redacted from error messages
+_SENSITIVE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # OpenAI API keys: sk-... or sk-proj-...
+    (re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"), "[REDACTED_OPENAI_KEY]"),
+    # Logfire tokens: pylf_...
+    (re.compile(r"\bpylf_[A-Za-z0-9_-]+\b"), "[REDACTED_LOGFIRE_TOKEN]"),
+    # Bearer tokens in headers
+    (re.compile(r"Bearer\s+[A-Za-z0-9_.-]+", re.IGNORECASE), "Bearer [REDACTED]"),
+    # Authorization header values
+    (
+        re.compile(r"['\"]?Authorization['\"]?\s*:\s*['\"]?[^'\"}\s]+", re.IGNORECASE),
+        "'Authorization': '[REDACTED]'",
+    ),
+    # Generic API key patterns in headers/URLs
+    (
+        re.compile(r"['\"]?api[_-]?key['\"]?\s*[=:]\s*['\"]?[A-Za-z0-9_.-]+", re.IGNORECASE),
+        "api_key=[REDACTED]",
+    ),
+    # X-API-Key header
+    (
+        re.compile(r"['\"]?X-API-Key['\"]?\s*:\s*['\"]?[^'\"}\s]+", re.IGNORECASE),
+        "'X-API-Key': '[REDACTED]'",
+    ),
+    # password/secret fields
+    (
+        re.compile(r"['\"]?(?:password|secret)['\"]?\s*[=:]\s*['\"]?[^'\"}\s]+", re.IGNORECASE),
+        "password=[REDACTED]",
+    ),
+]
+
+
+def sanitize_error(error: BaseException | str) -> str:
+    """Sanitize an error message by redacting sensitive information."""
+    text = str(error)
+    for pattern, replacement in _SENSITIVE_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
 
 
 @dataclass
@@ -47,7 +84,6 @@ class LayerCodeGymRunner:
         # Required settings
         self.server_url = os.environ["SERVER_URL"]
         self.agent_id = os.environ["LAYERCODE_AGENT_ID"]
-        self.layercode_api_key = os.environ["LAYERCODE_API_KEY"]
         self.openai_api_key = os.environ["OPENAI_API_KEY"]
 
         # Optional settings
@@ -94,38 +130,6 @@ class LayerCodeGymRunner:
             ],
             indent=2,
         )
-
-    async def configure_webhook(self) -> None:
-        """Configure webhook URL via LayerCode REST API.
-
-        This ensures the agent sends events to the correct backend server.
-        Note: LayerCode agents support one webhook at a time.
-        """
-        print("🔧 Configuring webhook URL...")
-
-        webhook_url = f"{self.server_url}/api/webhook"
-        api_url = f"https://api.layercode.com/v1/agents/{self.agent_id}/webhook"
-
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.put(
-                    api_url,
-                    headers={
-                        "Authorization": f"Bearer {self.layercode_api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={"url": webhook_url},
-                    timeout=30.0,
-                )
-                response.raise_for_status()
-                print(f"✅ Webhook configured: {webhook_url}")
-            except httpx.HTTPError as e:
-                print(f"❌ Failed to configure webhook: {e}", file=sys.stderr)
-                print(
-                    "   Check your LAYERCODE_API_KEY and LAYERCODE_AGENT_ID",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
 
     async def run_single_conversation(
         self, persona_index: int, persona: PersonaConfig
@@ -281,9 +285,11 @@ Did the assistant meet the criteria? Provide a pass/fail decision and brief feed
             )
 
         except Exception as e:
-            print(f"   ⚠️  Judge evaluation failed: {e}")
+            # Sanitize error to prevent leaking API keys in CI logs
+            safe_error = sanitize_error(e)
+            print(f"   ⚠️  Judge evaluation failed: {safe_error}")
             result.passed = False
-            result.judge_feedback = f"Judge error: {e}"
+            result.judge_feedback = f"Judge error: {safe_error}"
 
         return result
 
@@ -324,7 +330,7 @@ Did the assistant meet the criteria? Provide a pass/fail decision and brief feed
         if not self.judge_enabled:
             return results
 
-        print(f"\n🏛️  Running judge evaluations...")
+        print("\n🏛️  Running judge evaluations...")
         print("=" * 70)
 
         # Run judges in parallel
@@ -418,7 +424,7 @@ Did the assistant meet the criteria? Provide a pass/fail decision and brief feed
         print("=" * 70)
         print("🎯 LayerCode Gym CI Test Runner")
         print("=" * 70)
-        print(f"\nConfiguration:")
+        print("\nConfiguration:")
         print(f"  • Agent ID: {self.agent_id}")
         print(f"  • Server URL: {self.server_url}")
         print(f"  • Personas: {len(self.personas)}")
@@ -429,10 +435,13 @@ Did the assistant meet the criteria? Provide a pass/fail decision and brief feed
             print(f"  • Fail on Judge Failure: {self.fail_on_judge_failure}")
             print(f"  • Judge Criteria: {self.judge_criteria or '(default)'}")
         if self.logfire_token:
-            print(f"  • LogFire: Enabled ✓")
+            print("  • LogFire: Enabled ✓")
 
-        # Configure webhook
-        await self.configure_webhook()
+        print(
+            "\n💡 Note: Configure webhook before running tests using:\n"
+            f"   layercode-gym api-agents update --agent-id {self.agent_id} "
+            f"--webhook-url {self.server_url}/api/webhook\n"
+        )
 
         # Run conversations
         results = await self.run_all_conversations()

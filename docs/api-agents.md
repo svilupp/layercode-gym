@@ -166,7 +166,7 @@ layercode-gym api-agents update \
 
 **Example Output**:
 ```
-✓ Updated agent 'ag-123456'
+Updated agent 'ag-123456'
   webhook_url: https://new-backend.com/webhook
   name: Updated Agent
 ```
@@ -395,9 +395,9 @@ layercode-gym api-agents update --agent-id ag-123 --webhook-url https://new.com
 # Verify it worked
 CURRENT=$(layercode-gym api-agents get --agent-id ag-123 --json | jq -r .webhook_url)
 if [ "$CURRENT" == "https://new.com" ]; then
-  echo "✓ Webhook updated successfully"
+  echo "Webhook updated successfully"
 else
-  echo "✗ Webhook update failed"
+  echo "Webhook update failed"
   exit 1
 fi
 ```
@@ -433,10 +433,10 @@ concurrency:
 |---------|-----------------|---------------|
 | **Purpose** | Direct API access | Full test workflows |
 | **Use Case** | CI scripts, automation | Comprehensive testing |
-| **Webhook Management** | ✅ Manual control | ✅ Automatic |
-| **Run Tests** | ❌ Separate step | ✅ Built-in |
-| **Judge Evaluation** | ❌ No | ✅ Yes |
-| **Parallel Personas** | ❌ No | ✅ Yes |
+| **Webhook Management** | Manual control | Automatic |
+| **Run Tests** | Separate step | Built-in |
+| **Judge Evaluation** | No | Yes |
+| **Parallel Personas** | No | Yes |
 | **Complexity** | Simple, flexible | More setup |
 
 **When to use each:**
@@ -541,9 +541,9 @@ layercode-gym api-agents list --json | jq -r '.[]' | while read -r agent; do
   webhook=$(echo "$agent" | jq -r '.webhook_url')
 
   if [ "$webhook" != "$EXPECTED" ]; then
-    echo "⚠️  Agent $agent_id has unexpected webhook: $webhook"
+    echo "WARNING: Agent $agent_id has unexpected webhook: $webhook"
   else
-    echo "✓ Agent $agent_id webhook correct"
+    echo "Agent $agent_id webhook correct"
   fi
 done
 ```

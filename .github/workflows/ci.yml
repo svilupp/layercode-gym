@@ -112,29 +112,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Validate action.yml
-        run: |
-          if [ ! -f .github/actions/layercode-gym-test/action.yml ]; then
-            echo "Error: action.yml not found"
-            exit 1
-          fi
-          echo "✓ action.yml exists"
+      - name: Install PyYAML
+        run: pip install pyyaml
 
-      - name: Validate runner.py syntax
-        run: |
-          python -m py_compile .github/actions/layercode-gym-test/runner.py
-          echo "✓ runner.py is valid Python"
-
-      - name: Check runner.py imports (without execution)
-        run: |
-          echo "Checking that runner.py imports are valid..."
-          python -c "import ast; ast.parse(open('.github/actions/layercode-gym-test/runner.py').read())"
-          echo "✓ runner.py imports are syntactically valid"
-
-      - name: Validate README exists
-        run: |
-          if [ ! -f .github/actions/layercode-gym-test/README.md ]; then
-            echo "Error: Action README.md not found"
-            exit 1
-          fi
-          echo "✓ Action README.md exists"
+      - name: Run comprehensive CI validation
+        run: python scripts/validate_ci.py

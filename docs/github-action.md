@@ -6,11 +6,11 @@ Run automated tests for your voice agents in CI/CD pipelines with the LayerCode 
 
 The LayerCode Gym GitHub Action enables you to:
 
-- 🎭 **Test multiple personas** in parallel for maximum speed
-- 🏛️ **Automated judging** with LLM-based quality evaluation
-- 📊 **Track quality over time** with historical test results
-- 🔄 **Continuous regression testing** on every commit
-- 📦 **Zero setup complexity** - just configure and run
+- **Test multiple personas** in parallel for maximum speed
+- **Automated judging** with LLM-based quality evaluation
+- **Track quality over time** with historical test results
+- **Continuous regression testing** on every commit
+- **Zero setup complexity** - just configure and run
 
 ## Quick Start
 
@@ -24,7 +24,6 @@ Add these required secrets:
 |------------|-------------|--------------|
 | `SERVER_URL` | Your backend server URL | Your infrastructure |
 | `LAYERCODE_AGENT_ID` | LayerCode agent ID | [LayerCode Dashboard](https://layercode.com/dashboard) |
-| `LAYERCODE_API_KEY` | LayerCode API key | [LayerCode Dashboard](https://layercode.com/dashboard) → API Keys |
 | `OPENAI_API_KEY` | OpenAI API key | [OpenAI Platform](https://platform.openai.com/api-keys) |
 
 Optional but recommended:
@@ -67,7 +66,6 @@ jobs:
           judge-criteria: "Agent provides clear pricing info"
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
@@ -100,11 +98,11 @@ personas: |
 
 **Tips for writing good personas:**
 
-- ✅ Be specific about who the user is
-- ✅ Include relevant context (frustrations, goals, technical level)
-- ✅ Make intents clear and actionable
-- ❌ Don't make personas too similar
-- ❌ Don't make intents too vague
+- Be specific about who the user is
+- Include relevant context (frustrations, goals, technical level)
+- Make intents clear and actionable
+- Avoid making personas too similar
+- Avoid making intents too vague
 
 ### Judge Criteria
 
@@ -173,7 +171,6 @@ jobs:
           judge-criteria: "Agent handles request correctly without errors"
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
@@ -217,7 +214,6 @@ jobs:
           model: anthropic:claude-sonnet-4-5  # Use best model for quality checks
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           logfire-token: ${{ secrets.LOGFIRE_TOKEN }}
 ```
@@ -255,7 +251,6 @@ jobs:
           fail-on-judge-failure: true  # Block deployment on failure
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
 
   deploy:
@@ -435,15 +430,6 @@ Keep artifacts for critical tests:
 - Test locally first with CLI
 - Set `fail-on-judge-failure: false` temporarily
 
-### Webhook Configuration Fails
-
-**Symptom**: "Failed to configure webhook"
-
-**Solutions**:
-- Verify `LAYERCODE_API_KEY` is correct
-- Confirm `LAYERCODE_AGENT_ID` is valid
-- Check [LayerCode API documentation](https://docs.layercode.com/api-reference/rest-api)
-
 ### Concurrent Run Conflicts
 
 **Symptom**: Tests interfere with each other
@@ -517,6 +503,6 @@ steps:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/layercode-gym/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/layercode-gym/discussions)
+- **Issues**: [GitHub Issues](https://github.com/svilupp/layercode-gym/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/svilupp/layercode-gym/discussions)
 - **LayerCode Docs**: [docs.layercode.com](https://docs.layercode.com)

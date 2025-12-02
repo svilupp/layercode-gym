@@ -4,12 +4,12 @@ A GitHub Action for running automated conversational AI tests using LayerCode Gy
 
 ## Features
 
-- 🎭 **Multiple Personas**: Test with multiple user personas simultaneously
-- ⚡ **Parallel Execution**: All conversations run concurrently for maximum speed
-- 🏛️ **Automated Judging**: Optional LLM-based evaluation with pass/fail criteria
-- 📊 **Detailed Reports**: Conversation transcripts, audio recordings, and judge feedback
-- 🔍 **Observability**: Optional LogFire integration for deep insights
-- 💾 **Artifacts**: Automatic upload of all test results
+- **Multiple Personas**: Test with multiple user personas simultaneously
+- **Parallel Execution**: All conversations run concurrently for maximum speed
+- **Automated Judging**: Optional LLM-based evaluation with pass/fail criteria
+- **Detailed Reports**: Conversation transcripts, audio recordings, and judge feedback
+- **Observability**: Optional LogFire integration for deep insights
+- **Artifacts**: Automatic upload of all test results
 
 ## Quick Start
 
@@ -49,7 +49,6 @@ jobs:
           judge-criteria: "The agent must provide clear information and offer a demo or next steps"
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           logfire-token: ${{ secrets.LOGFIRE_TOKEN }}
 ```
@@ -87,12 +86,6 @@ jobs:
 **Type**: String (secret)
 **Description**: Your LayerCode agent ID from the dashboard
 **Where to find**: LayerCode Dashboard → Your Agent → Settings
-
-#### `layercode-api-key`
-**Type**: String (secret)
-**Description**: Your LayerCode API key for webhook configuration
-**Where to find**: LayerCode Dashboard → API Keys
-**Docs**: [LayerCode REST API](https://docs.layercode.com/api-reference/rest-api)
 
 #### `openai-api-key`
 **Type**: String (secret)
@@ -172,7 +165,6 @@ Set these in your repository: **Settings → Secrets and variables → Actions �
 |------------|-------------|--------------|
 | `SERVER_URL` | Your backend server URL | Your infrastructure |
 | `LAYERCODE_AGENT_ID` | LayerCode agent ID | [LayerCode Dashboard](https://layercode.com/dashboard) |
-| `LAYERCODE_API_KEY` | LayerCode API key | [LayerCode Dashboard → API Keys](https://layercode.com/dashboard) |
 | `OPENAI_API_KEY` | OpenAI API key | [OpenAI Platform](https://platform.openai.com/api-keys) |
 | `LOGFIRE_TOKEN` | LogFire token (optional) | [LogFire](https://logfire.pydantic.dev/) |
 
@@ -233,7 +225,6 @@ jobs:
           model: openai:gpt-4o-mini
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           logfire-token: ${{ secrets.LOGFIRE_TOKEN }}
 
@@ -276,7 +267,6 @@ jobs:
           model: anthropic:claude-sonnet-4-5
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           logfire-token: ${{ secrets.LOGFIRE_TOKEN }}
 ```
@@ -366,20 +356,11 @@ judge-criteria: |
 
 ## Troubleshooting
 
-### "Failed to configure webhook"
-
-**Cause**: Invalid `LAYERCODE_API_KEY` or `LAYERCODE_AGENT_ID`
-
-**Solution**:
-1. Verify your API key in [LayerCode Dashboard → API Keys](https://layercode.com/dashboard)
-2. Confirm agent ID in LayerCode Dashboard → Your Agent → Settings
-3. Ensure secrets are set correctly in GitHub repository settings
-
 ### "No module named 'layercode_gym'"
 
 **Cause**: Installation issue with `uvx`
 
-**Solution**: This should auto-resolve. If persistent, file an issue at [layercode-gym repo](https://github.com/yourusername/layercode-gym/issues)
+**Solution**: This should auto-resolve. If persistent, file an issue at [layercode-gym repo](https://github.com/svilupp/layercode-gym/issues)
 
 ### Conversations Timing Out
 
@@ -458,6 +439,6 @@ steps:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/layercode-gym/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/layercode-gym/discussions)
+- **Issues**: [GitHub Issues](https://github.com/svilupp/layercode-gym/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/svilupp/layercode-gym/discussions)
 - **LayerCode Docs**: [docs.layercode.com](https://docs.layercode.com)

@@ -153,7 +153,7 @@ class LayercodeClient:
             conversation_id=authorization.conversation_id
         )
         ws_url = f"{self.settings.websocket_url}?client_session_key={authorization.client_session_key}"
-        logger.info("Connecting to WebSocket: %s", ws_url[:60] + "...")
+        logger.info("Connecting to WebSocket: %s", ws_url)
 
         async with connect(ws_url) as websocket:
             logger.info("WebSocket connected")
