@@ -63,7 +63,8 @@ jobs:
               }
             ]
           judge-enabled: true
-          judge-criteria: "Agent provides clear pricing info"
+          judge-criteria: |
+            - Did the agent provide clear pricing information?
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -106,10 +107,10 @@ personas: |
 
 ### Judge Criteria
 
-The judge evaluates whether conversations meet your quality standards.
+The judge evaluates whether conversations meet your quality standards. Each criterion is a yes/no question that gets evaluated independently—**all must pass** for the conversation to pass.
 
 **Good criteria are:**
-- Specific and measurable
+- Specific, measurable yes/no questions
 - Focused on agent behavior
 - Clear pass/fail conditions
 
@@ -117,23 +118,35 @@ The judge evaluates whether conversations meet your quality standards.
 
 ```yaml
 # Simple criteria
-judge-criteria: "Agent provides accurate product information"
+judge-criteria: |
+  - Did the agent provide accurate product information?
 
 # Detailed criteria
 judge-criteria: |
-  The agent must:
-  1. Greet the user professionally
-  2. Answer all questions with accurate information
-  3. Offer next steps (demo, documentation, contact)
-  4. Maintain a helpful and empathetic tone throughout
+  - Did the agent greet the user professionally?
+  - Did the agent answer all questions with accurate information?
+  - Did the agent offer next steps (demo, documentation, contact)?
+  - Did the agent maintain a helpful and empathetic tone throughout?
 
 # Domain-specific criteria
 judge-criteria: |
-  Technical requirements:
-  - Agent must mention API authentication methods
-  - Agent must provide documentation links
-  - Agent must explain rate limits
-  - Agent must not provide incorrect technical details
+  - Did the agent mention API authentication methods?
+  - Did the agent provide documentation links?
+  - Did the agent explain rate limits correctly?
+  - Did the agent avoid providing incorrect technical details?
+```
+
+### Audio Storage
+
+By default, audio storage is **disabled** in the GitHub Action for faster CI execution. The judge only needs text transcripts, not audio files.
+
+To enable audio storage (requires ffmpeg on the runner):
+
+```yaml
+- uses: ./.github/actions/layercode-gym-test
+  with:
+    store-audio: true  # Enable audio file storage
+    # ... other config
 ```
 
 ### Full Configuration Options
@@ -168,7 +181,9 @@ jobs:
               {"background": "Support case", "intent": "Report a bug"}
             ]
           judge-enabled: true
-          judge-criteria: "Agent handles request correctly without errors"
+          judge-criteria: |
+            - Did the agent handle the request correctly?
+            - Did the agent avoid errors during the conversation?
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -206,11 +221,10 @@ jobs:
           max-turns: 10
           judge-enabled: true
           judge-criteria: |
-            Agent must:
-            - Adapt tone to user's emotional state
-            - Provide accurate information
-            - Offer appropriate solutions
-            - Maintain professionalism
+            - Did the agent adapt tone to user's emotional state?
+            - Did the agent provide accurate information?
+            - Did the agent offer appropriate solutions?
+            - Did the agent maintain professionalism?
           model: anthropic:claude-sonnet-4-5  # Use best model for quality checks
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
@@ -247,7 +261,9 @@ jobs:
               {"background": "Critical user journey 3", "intent": "Update account"}
             ]
           judge-enabled: true
-          judge-criteria: "All critical paths work without errors"
+          judge-criteria: |
+            - Did all critical paths complete successfully?
+            - Did the agent avoid errors during the conversation?
           fail-on-judge-failure: true  # Block deployment on failure
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}

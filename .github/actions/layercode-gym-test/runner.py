@@ -34,7 +34,9 @@ _SENSITIVE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     ),
     # Generic API key patterns in headers/URLs
     (
-        re.compile(r"['\"]?api[_-]?key['\"]?\s*[=:]\s*['\"]?[A-Za-z0-9_.-]+", re.IGNORECASE),
+        re.compile(
+            r"['\"]?api[_-]?key['\"]?\s*[=:]\s*['\"]?[A-Za-z0-9_.-]+", re.IGNORECASE
+        ),
         "api_key=[REDACTED]",
     ),
     # X-API-Key header
@@ -44,7 +46,9 @@ _SENSITIVE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     ),
     # password/secret fields
     (
-        re.compile(r"['\"]?(?:password|secret)['\"]?\s*[=:]\s*['\"]?[^'\"}\s]+", re.IGNORECASE),
+        re.compile(
+            r"['\"]?(?:password|secret)['\"]?\s*[=:]\s*['\"]?[^'\"}\s]+", re.IGNORECASE
+        ),
         "password=[REDACTED]",
     ),
 ]
@@ -93,11 +97,16 @@ class LayerCodeGymRunner:
         self.personas_json = os.environ["PERSONAS"]
         self.max_turns = int(os.environ.get("MAX_TURNS", "5"))
         self.judge_enabled = os.environ.get("JUDGE_ENABLED", "false").lower() == "true"
-        self.judge_criteria = os.environ.get("JUDGE_CRITERIA", "")
+        self.judge_criteria: list[str] = self._parse_judge_criteria(
+            os.environ.get("JUDGE_CRITERIA", "[]")
+        )
         self.fail_on_judge_failure = (
             os.environ.get("FAIL_ON_JUDGE_FAILURE", "true").lower() == "true"
         )
         self.model = os.environ.get("MODEL", "openai:gpt-4o-mini")
+        self.store_audio = (
+            os.environ.get("LAYERCODE_STORE_AUDIO", "false").lower() == "true"
+        )
 
         # Parse personas
         self.personas = self._parse_personas()
@@ -130,6 +139,37 @@ class LayerCodeGymRunner:
             ],
             indent=2,
         )
+
+    def _parse_judge_criteria(self, criteria_text: str) -> list[str]:
+        """Parse judge criteria from YAML list format.
+
+        Accepts YAML-style list with "- " prefix per line:
+            - Did the agent greet the user?
+            - Did the agent provide accurate info?
+
+        Args:
+            criteria_text: Multi-line string with YAML list items
+
+        Returns:
+            List of criteria strings
+        """
+        if not criteria_text or criteria_text.strip() == "":
+            return []
+
+        criteria: list[str] = []
+        for line in criteria_text.strip().splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                criterion = line[2:].strip()
+                if criterion:
+                    criteria.append(criterion)
+            elif line and not line.startswith("#"):
+                # Non-empty, non-comment line without "- " prefix
+                print(
+                    f"⚠️  Warning: judge-criteria line missing '- ' prefix: {line}",
+                    file=sys.stderr,
+                )
+        return criteria
 
     async def run_single_conversation(
         self, persona_index: int, persona: PersonaConfig
@@ -175,14 +215,7 @@ class LayerCodeGymRunner:
         )
 
     async def run_judge(self, result: TestResult) -> TestResult:
-        """Run judge evaluation on a conversation.
-
-        NOTE: This implements the FUTURE judge interface as described by the user.
-        The next version of layercode-gym will have:
-        - A built-in judge that takes string criteria
-        - Returns result.output.overall_pass (bool)
-
-        For now, this is a placeholder implementation.
+        """Run judge evaluation on a conversation using CriteriaJudge.
 
         Args:
             result: TestResult with conversation_id
@@ -192,25 +225,10 @@ class LayerCodeGymRunner:
         """
         print(f"   🔍 Judging conversation {result.conversation_id}...")
 
-        # TODO: Replace this with actual judge when available in next gym version
-        # Expected usage:
-        #   from layercode_gym import ConversationJudge
-        #   judge = ConversationJudge(criteria=self.judge_criteria)
-        #   evaluation = await judge.evaluate(conversation_id)
-        #   overall_pass = evaluation.output.overall_pass
-
-        # For now, implement a basic judge using the pattern from example 04
+        # Import here to avoid issues with uvx installation timing
         from layercode_gym import Settings
+        from layercode_gym.agents.judge import CriteriaJudge
         from layercode_gym.models.conversation import ConversationLog
-        from pydantic import BaseModel
-        from pydantic_ai import Agent
-
-        # Define judge result format (future interface)
-        class JudgeResult(BaseModel):
-            """Future judge interface: simple pass/fail with criteria."""
-
-            overall_pass: bool
-            feedback: str
 
         # Load conversation log
         settings = Settings.load()
@@ -228,61 +246,27 @@ class LayerCodeGymRunner:
             log_data = json.load(f)
             log = ConversationLog(**log_data)
 
-        # Build transcript
-        transcript_parts = []
-        for i, turn in enumerate(log.turns):
-            if turn.assistant_message:
-                transcript_parts.append(
-                    f"[Turn {i}] ASSISTANT: {turn.assistant_message.content or '(audio only)'}"
-                )
-            if turn.user_message:
-                transcript_parts.append(
-                    f"[Turn {i}] USER: {turn.user_message.content or '(audio only)'}"
-                )
-
-        transcript = "\n".join(transcript_parts)
-
-        # Create judge agent
-        judge_agent: Agent[None, JudgeResult] = Agent(
-            self.model,
-            result_type=JudgeResult,
-            system_prompt=(
-                "You are an expert evaluator of conversational AI systems. "
-                "Evaluate the ASSISTANT's performance based on the provided criteria. "
-                "Return a simple pass/fail decision with brief feedback."
-            ),
-        )
-
-        # Evaluate
-        criteria_prompt = self.judge_criteria or "The assistant provided helpful and accurate information"
-        prompt = f"""Evaluate this conversation based on the following criteria:
-
-{criteria_prompt}
-
-Conversation transcript:
-{transcript}
-
-Did the assistant meet the criteria? Provide a pass/fail decision and brief feedback."""
+        # Use default criterion if none provided
+        criteria = self.judge_criteria or [
+            "Did the assistant provide helpful and accurate information?"
+        ]
 
         try:
-            agent_result = await judge_agent.run(prompt)
-            evaluation = agent_result.data
-
-            result.passed = evaluation.overall_pass
-            result.judge_feedback = evaluation.feedback
-
-            # Save judge results
-            judge_file = conv_dir / "judge_evaluation.json"
-            judge_file.write_text(
-                json.dumps(
-                    {
-                        "criteria": criteria_prompt,
-                        "overall_pass": evaluation.overall_pass,
-                        "feedback": evaluation.feedback,
-                    },
-                    indent=2,
-                )
+            # Create CriteriaJudge with the list of criteria
+            judge = CriteriaJudge(
+                criteria=criteria,
+                model=self.model,
             )
+
+            # Evaluate the conversation
+            evaluation = await judge.evaluate(log)
+
+            # Use overall_pass from judge output
+            result.passed = evaluation.overall_pass
+            result.judge_feedback = evaluation.reasoning
+
+            # Save results using CriteriaJudge's built-in method
+            judge.save_results(evaluation, result.conversation_id, settings.output_root)
 
         except Exception as e:
             # Sanitize error to prevent leaking API keys in CI logs
@@ -367,8 +351,7 @@ Did the assistant meet the criteria? Provide a pass/fail decision and brief feed
                 print(f"      Conversation: {result.conversation_id}")
                 if result.judge_feedback:
                     feedback_preview = (
-                        result.judge_feedback[:100]
-                        + "..."
+                        result.judge_feedback[:100] + "..."
                         if len(result.judge_feedback) > 100
                         else result.judge_feedback
                     )
@@ -430,10 +413,14 @@ Did the assistant meet the criteria? Provide a pass/fail decision and brief feed
         print(f"  • Personas: {len(self.personas)}")
         print(f"  • Max Turns: {self.max_turns}")
         print(f"  • Model: {self.model}")
+        print(f"  • Store Audio: {self.store_audio}")
         print(f"  • Judge Enabled: {self.judge_enabled}")
         if self.judge_enabled:
             print(f"  • Fail on Judge Failure: {self.fail_on_judge_failure}")
-            print(f"  • Judge Criteria: {self.judge_criteria or '(default)'}")
+            criteria_count = len(self.judge_criteria)
+            print(f"  • Judge Criteria: {criteria_count} criterion(s)")
+            for i, criterion in enumerate(self.judge_criteria, 1):
+                print(f"      {i}. {criterion}")
         if self.logfire_token:
             print("  • LogFire: Enabled ✓")
 

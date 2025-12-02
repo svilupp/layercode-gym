@@ -16,6 +16,7 @@ Run: python scripts/validate_ci.py
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 import os
 import re
@@ -23,7 +24,6 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 # Ensure we're running from repo root
 REPO_ROOT = Path(__file__).parent.parent
@@ -125,7 +125,9 @@ class TestRunner:
 
         for suite in self.suites:
             status = f"{GREEN}PASS{RESET}" if suite.failed == 0 else f"{RED}FAIL{RESET}"
-            print(f"  {suite.name}: {status} ({suite.passed}/{suite.passed + suite.failed})")
+            print(
+                f"  {suite.name}: {status} ({suite.passed}/{suite.passed + suite.failed})"
+            )
 
         print(f"\n{BLUE}{'─' * 70}{RESET}")
         print(f"  {GREEN}Passed:{RESET}   {total_passed}")
@@ -136,7 +138,9 @@ class TestRunner:
         if total_failed == 0:
             print(f"{GREEN}{BOLD}All validation checks passed.{RESET}\n")
         else:
-            print(f"{RED}{BOLD}Validation failed with {total_failed} error(s).{RESET}\n")
+            print(
+                f"{RED}{BOLD}Validation failed with {total_failed} error(s).{RESET}\n"
+            )
 
         return total_failed == 0
 
@@ -287,9 +291,13 @@ def test_action_yaml_structure() -> None:
         inp = action["inputs"][input_name]
         if "default" in inp:
             if str(inp["default"]) == expected_default:
-                runner.passed(f"Input '{input_name}' has correct default: {expected_default}")
+                runner.passed(
+                    f"Input '{input_name}' has correct default: {expected_default}"
+                )
             else:
-                runner.warn(f"Input '{input_name}' default is {inp['default']}, expected {expected_default}")
+                runner.warn(
+                    f"Input '{input_name}' default is {inp['default']}, expected {expected_default}"
+                )
         else:
             runner.warn(f"Input '{input_name}' has no default")
 
@@ -325,8 +333,7 @@ def test_action_yaml_structure() -> None:
 
         # Check for Python setup
         has_python_setup = any(
-            "setup-python" in str(step.get("uses", ""))
-            for step in runs["steps"]
+            "setup-python" in str(step.get("uses", "")) for step in runs["steps"]
         )
         if has_python_setup:
             runner.passed("Sets up Python environment")
@@ -334,10 +341,7 @@ def test_action_yaml_structure() -> None:
             runner.warn("No explicit Python setup step")
 
         # Check for uvx usage
-        has_uvx = any(
-            "uvx" in str(step.get("run", ""))
-            for step in runs["steps"]
-        )
+        has_uvx = any("uvx" in str(step.get("run", "")) for step in runs["steps"])
         if has_uvx:
             runner.passed("Uses uvx for package execution")
         else:
@@ -603,7 +607,7 @@ def test_api_agents_module() -> None:
     with open(main_cli_path) as f:
         content = f.read()
 
-    if 'api-agents' in content:
+    if "api-agents" in content:
         runner.passed("Main CLI routes to api-agents")
     else:
         runner.failed("Missing api-agents routing in main CLI")
@@ -676,13 +680,19 @@ def test_workflow_files() -> None:
                         if "group" in conc:
                             runner.passed(f"Job '{job_name}' has concurrency group")
                             if "LAYERCODE_AGENT_ID" in str(conc["group"]):
-                                runner.passed(f"Job '{job_name}' concurrency includes agent ID")
+                                runner.passed(
+                                    f"Job '{job_name}' concurrency includes agent ID"
+                                )
                             else:
-                                runner.warn(f"Job '{job_name}' concurrency should include agent ID")
+                                runner.warn(
+                                    f"Job '{job_name}' concurrency should include agent ID"
+                                )
                         if conc.get("cancel-in-progress") is False:
                             runner.passed(f"Job '{job_name}' prevents cancellation")
                         else:
-                            runner.warn(f"Job '{job_name}' should set cancel-in-progress: false")
+                            runner.warn(
+                                f"Job '{job_name}' should set cancel-in-progress: false"
+                            )
                     else:
                         runner.failed(f"Job '{job_name}' missing concurrency control")
 
@@ -696,7 +706,12 @@ def test_workflow_files() -> None:
                                 runner.warn("Should use relative path for local action")
 
                             if "with" in step:
-                                required = ["personas", "server-url", "layercode-agent-id", "openai-api-key"]
+                                required = [
+                                    "personas",
+                                    "server-url",
+                                    "layercode-agent-id",
+                                    "openai-api-key",
+                                ]
                                 for inp in required:
                                     if inp in step["with"]:
                                         runner.passed(f"Provides required input: {inp}")
@@ -870,7 +885,7 @@ def test_security() -> None:
         with open(runner_path) as f:
             content = f.read()
 
-        if 'os.environ.get(' in content or 'os.environ[' in content:
+        if "os.environ.get(" in content or "os.environ[" in content:
             runner.passed("Uses environment variables for configuration")
         else:
             runner.warn("Should use environment variables")
@@ -925,6 +940,7 @@ def test_consistency() -> None:
         "judge-enabled": "JUDGE_ENABLED",
         "judge-criteria": "JUDGE_CRITERIA",
         "model": "MODEL",
+        "store-audio": "LAYERCODE_STORE_AUDIO",
     }
 
     for input_name, env_name in input_to_env.items():
@@ -1074,10 +1090,10 @@ def main() -> int:
     print(f"{BLUE}{'=' * 70}{RESET}")
 
     # Check for required dependencies
-    try:
-        import yaml
-    except ImportError:
-        print(f"\n{RED}Error: PyYAML is required. Install with: pip install pyyaml{RESET}\n")
+    if importlib.util.find_spec("yaml") is None:
+        print(
+            f"\n{RED}Error: PyYAML is required. Install with: pip install pyyaml{RESET}\n"
+        )
         return 1
 
     # Run all test suites

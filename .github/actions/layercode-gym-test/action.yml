@@ -27,8 +27,12 @@ inputs:
 
   judge-criteria:
     description: |
-      String describing pass/fail criteria for the judge to evaluate.
-      Example: "The agent must provide clear pricing information and offer a demo"
+      List of evaluation criteria (one per line, prefixed with "- ").
+      Each criterion should be a yes/no question the judge can answer.
+      Example:
+        judge-criteria: |
+          - Did the agent greet the user appropriately?
+          - Did the agent provide accurate information?
     required: false
     default: ''
 
@@ -63,6 +67,11 @@ inputs:
     description: 'Upload conversation transcripts and recordings as artifacts'
     required: false
     default: 'true'
+
+  store-audio:
+    description: 'Store audio files (requires ffmpeg). Disabled by default for faster CI.'
+    required: false
+    default: 'false'
 
 outputs:
   conversations-run:
@@ -120,6 +129,7 @@ runs:
         JUDGE_CRITERIA: ${{ inputs.judge-criteria }}
         FAIL_ON_JUDGE_FAILURE: ${{ inputs.fail-on-judge-failure }}
         MODEL: ${{ inputs.model }}
+        LAYERCODE_STORE_AUDIO: ${{ inputs.store-audio }}
       run: |
         # Install layercode-gym and run the orchestration script
         uv run --with layercode-gym ${{ github.action_path }}/runner.py

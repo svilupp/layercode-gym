@@ -46,7 +46,9 @@ jobs:
             ]
           max-turns: 5
           judge-enabled: true
-          judge-criteria: "The agent must provide clear information and offer a demo or next steps"
+          judge-criteria: |
+            - Did the agent provide clear information?
+            - Did the agent offer a demo or next steps?
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -105,10 +107,17 @@ jobs:
 **Description**: Enable automated LLM-based judging of conversations
 
 #### `judge-criteria`
-**Type**: String
-**Default**: `"The assistant provided helpful and accurate information"`
-**Description**: Pass/fail criteria for the judge to evaluate
-**Example**: `"The agent must mention pricing, offer a demo, and be professional"`
+**Type**: YAML list (one criterion per line, prefixed with `- `)
+**Default**: `- Did the assistant provide helpful and accurate information?`
+**Description**: List of yes/no criteria for the judge to evaluate. Each criterion is evaluated independently, and all must pass for overall success.
+
+**Example**:
+```yaml
+judge-criteria: |
+  - Did the agent greet the user appropriately?
+  - Did the agent provide accurate pricing information?
+  - Did the agent offer a demo or next steps?
+```
 
 #### `fail-on-judge-failure`
 **Type**: Boolean
@@ -136,6 +145,12 @@ jobs:
 **Type**: Boolean
 **Default**: `true`
 **Description**: Upload conversation transcripts and recordings as GitHub artifacts
+
+#### `store-audio`
+**Type**: Boolean
+**Default**: `false`
+**Description**: Store audio files for each conversation turn. Disabled by default for faster CI execution (judge only needs text transcripts).
+**Note**: Requires ffmpeg to be installed on the runner if enabled.
 
 ## Outputs
 
@@ -216,11 +231,10 @@ jobs:
           max-turns: 7
           judge-enabled: true
           judge-criteria: |
-            The agent must:
-            1. Address the customer's concern directly
-            2. Be empathetic and professional
-            3. Provide clear next steps or solutions
-            4. Not leave the customer confused
+            - Did the agent address the customer's concern directly?
+            - Was the agent empathetic and professional?
+            - Did the agent provide clear next steps or solutions?
+            - Did the agent avoid leaving the customer confused?
           fail-on-judge-failure: true
           model: openai:gpt-4o-mini
           server-url: ${{ secrets.SERVER_URL }}
@@ -263,7 +277,9 @@ jobs:
             ]
           max-turns: 10
           judge-enabled: true
-          judge-criteria: "The agent provides accurate technical information and documentation links"
+          judge-criteria: |
+            - Did the agent provide accurate technical information?
+            - Did the agent provide relevant documentation links?
           model: anthropic:claude-sonnet-4-5
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
@@ -337,15 +353,14 @@ Set `LOGFIRE_TOKEN` secret for deep observability:
 
 ### 5. Write Specific Judge Criteria
 
-Good criteria are specific and measurable:
+Good criteria are specific, measurable yes/no questions:
 
 ```yaml
 judge-criteria: |
-  The agent must:
-  1. Greet the user by name if provided
-  2. Provide at least 2 specific product recommendations
-  3. Mention the return policy
-  4. End with a clear call-to-action
+  - Did the agent greet the user by name (if provided)?
+  - Did the agent provide at least 2 specific product recommendations?
+  - Did the agent mention the return policy?
+  - Did the agent end with a clear call-to-action?
 ```
 
 ### 6. Use Different Models for Different Needs
@@ -403,7 +418,8 @@ Enable judge only on main branch:
 - uses: ./.github/actions/layercode-gym-test
   with:
     judge-enabled: ${{ github.ref == 'refs/heads/main' }}
-    judge-criteria: "..."
+    judge-criteria: |
+      - Did the agent provide accurate information?
 ```
 
 ### Matrix Testing

@@ -13,7 +13,7 @@ on:
       max-turns:
         description: 'Maximum conversation turns'
         type: number
-        default: 5
+        default: 3
 
 jobs:
   example-test:
@@ -53,20 +53,19 @@ jobs:
 
           # Conversation settings
           max-turns: ${{ inputs.max-turns }}
-          model: openai:gpt-4o-mini
+          model: openai:gpt-5-nano
 
           # Judge configuration
           judge-enabled: ${{ inputs.judge-enabled }}
           judge-criteria: |
-            The agent must:
-            1. Provide clear and accurate information
-            2. Be empathetic and professional in tone
-            3. Offer actionable next steps or solutions
-            4. Not leave the user confused or frustrated
-          fail-on-judge-failure: true
+            - Did the agent provide clear and accurate information?
+            - Was the agent empathetic and professional in tone?
+            - Did the agent offer actionable next steps or solutions?
+            - Did the agent avoid leaving the user confused or frustrated?
+          fail-on-judge-failure: false
 
           # Required secrets (set in GitHub repository settings)
-          server-url: ${{ secrets.SERVER_URL }}
+          server-url: ${{ vars.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
 

@@ -24,39 +24,6 @@ Perfect for regression testing, load testing, and automated evaluation of your v
 
 See `examples/` for reference!
 
-## GitHub Actions CI/CD
-
-Run automated tests in your CI pipeline with multiple personas in parallel:
-
-```yaml
-- uses: ./.github/actions/layercode-gym-test
-  with:
-    personas: |
-      [
-        {
-          "background": "You are a potential customer",
-          "intent": "Learn about pricing and features"
-        },
-        {
-          "background": "You are a frustrated user",
-          "intent": "Get help with a problem"
-        }
-      ]
-    judge-enabled: true
-    judge-criteria: "Agent provides clear, helpful responses"
-    server-url: ${{ secrets.SERVER_URL }}
-    layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
-    openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-```
-
-**Features:**
-- Run multiple personas in parallel for maximum speed
-- Automated quality evaluation with LLM judge
-- Detailed artifacts with transcripts and audio recordings
-- Optional LogFire observability integration
-
-See [GitHub Actions documentation](docs/github-action.md) for complete setup guide.
-
 ## Quick Start
 
 **Prerequisites:** Backend server configured in [Layercode dashboard](https://dash.layercode.com).
@@ -246,6 +213,40 @@ results = await tqdm_asyncio.gather(*tasks, desc="Running conversations")
 ```
 
 See `examples/05_batch_evaluation.py` for the complete pattern.
+
+## GitHub Actions CI/CD
+
+Run automated tests in your CI pipeline with multiple personas in parallel:
+
+```yaml
+- uses: ./.github/actions/layercode-gym-test
+  with:
+    personas: |
+      [
+        {
+          "background": "You are a potential customer",
+          "intent": "Learn about pricing and features"
+        },
+        {
+          "background": "You are a frustrated user",
+          "intent": "Get help with a problem"
+        }
+      ]
+    judge-enabled: true
+    judge-criteria: |
+      - Did the agent provide clear and helpful responses?
+    server-url: ${{ secrets.SERVER_URL }}
+    layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
+    openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+**Features:**
+- Run multiple personas in parallel for maximum speed
+- Automated quality evaluation with LLM judge
+- Detailed artifacts with transcripts and audio recordings
+- Optional LogFire observability integration
+
+See [GitHub Actions documentation](docs/github-action.md) for complete setup guide.
 
 ## Conversation Outputs
 

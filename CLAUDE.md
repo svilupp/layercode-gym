@@ -83,3 +83,4 @@ Optional:
 - `OPENAI_API_KEY`: For TTS and AI personas
 - `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`: TTS configuration
 - `LAYERCODE_OUTPUT_ROOT`: Output directory (default: `./conversations`)
+- `LAYERCODE_STORE_AUDIO`: Set to `false` to skip audio file storage (default: `true`). Useful for CI where ffmpeg may not be available.

@@ -147,7 +147,9 @@ class LayercodeClient:
             authorization.conversation_id,
         )
         storage = ConversationStorage(
-            self.settings.output_root, authorization.conversation_id
+            self.settings.output_root,
+            authorization.conversation_id,
+            store_audio=self.settings.store_audio,
         )
         conversation_log = ConversationLog(
             conversation_id=authorization.conversation_id
@@ -374,7 +376,8 @@ class LayercodeClient:
         attachments: list[Attachment] = []
         audio_path_stored: Path | None = None
         timestamp = datetime.now(timezone.utc)
-        if self._assistant_state.audio_chunks:
+        # Only process audio if store_audio is enabled
+        if self._assistant_state.audio_chunks and self.settings.store_audio:
             segment = ensure_mono_pcm16(
                 self._combine_chunks(self._assistant_state.audio_chunks)
             )
@@ -384,8 +387,9 @@ class LayercodeClient:
                 turn_index=len(log.turns),
                 timestamp=timestamp,
             )
-            audio_path_stored = stored_path
-            attachments.append(Attachment(path=stored_path, kind="audio"))
+            if stored_path is not None:
+                audio_path_stored = stored_path
+                attachments.append(Attachment(path=stored_path, kind="audio"))
         if text:
             text_path = storage.store_text(
                 text, role="assistant", turn_index=len(log.turns), timestamp=timestamp
@@ -425,7 +429,7 @@ class LayercodeClient:
             storage, log
         )
         self._pending_assistant_message = assistant_message
-        if assistant_segment is not None:
+        if assistant_segment is not None and self.settings.store_audio:
             self._mix_segments.append(assistant_segment)
 
         # Track user turn start time
@@ -563,7 +567,8 @@ class LayercodeClient:
         user_audio_segment = None
         user_audio_path = None
         timestamp = datetime.now(timezone.utc)
-        if response.audio_path is not None:
+        # Only process audio if store_audio is enabled
+        if response.audio_path is not None and self.settings.store_audio:
             user_audio_segment = ensure_mono_pcm16(load_audio(response.audio_path))
             stored_path = storage.store_audio_segment(
                 user_audio_segment,
@@ -571,8 +576,9 @@ class LayercodeClient:
                 turn_index=len(log.turns),
                 timestamp=timestamp,
             )
-            user_audio_path = stored_path
-            user_attachments.append(Attachment(path=stored_path, kind="audio"))
+            if stored_path is not None:
+                user_audio_path = stored_path
+                user_attachments.append(Attachment(path=stored_path, kind="audio"))
         if response.text is not None:
             text_path = storage.store_text(
                 response.text,
@@ -581,7 +587,7 @@ class LayercodeClient:
                 timestamp=timestamp,
             )
             user_attachments.append(Attachment(path=text_path, kind="text"))
-        if user_audio_segment is not None:
+        if user_audio_segment is not None and self.settings.store_audio:
             self._mix_segments.append(user_audio_segment)
 
         user_message = Message(

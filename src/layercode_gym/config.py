@@ -30,6 +30,8 @@ class Settings:
     # Audio chunking configuration (defaults from simple_ai_client.py)
     chunk_ms: int  # Milliseconds of audio per chunk (default: 100)
     chunk_interval: float  # Delay between chunks in seconds (default: 0.0)
+    # Audio storage (can be disabled for CI to skip ffmpeg dependency)
+    store_audio: bool  # Whether to store audio files (default: True)
 
     @classmethod
     def load(cls) -> "Settings":
@@ -53,6 +55,9 @@ class Settings:
         chunk_ms = int(os.getenv("LAYERCODE_CHUNK_MS", "100"))
         chunk_interval = float(os.getenv("LAYERCODE_CHUNK_INTERVAL", "0.0"))
 
+        # Audio storage (can be disabled for CI to skip ffmpeg dependency)
+        store_audio = os.getenv("LAYERCODE_STORE_AUDIO", "true").lower() == "true"
+
         return cls(
             server_url=server_url,
             authorize_path=authorize_path,
@@ -65,6 +70,7 @@ class Settings:
             tts_instructions=tts_instructions,
             chunk_ms=chunk_ms,
             chunk_interval=chunk_interval,
+            store_audio=store_audio,
         )
 
 

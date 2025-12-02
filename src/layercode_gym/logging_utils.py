@@ -67,7 +67,9 @@ _SENSITIVE_PATTERNS: Final[list[tuple[re.Pattern[str], str]]] = [
     ),
     # Generic API key patterns in headers/URLs
     (
-        re.compile(r"['\"]?api[_-]?key['\"]?\s*[=:]\s*['\"]?[A-Za-z0-9_.-]+", re.IGNORECASE),
+        re.compile(
+            r"['\"]?api[_-]?key['\"]?\s*[=:]\s*['\"]?[A-Za-z0-9_.-]+", re.IGNORECASE
+        ),
         "api_key=[REDACTED]",
     ),
     # X-API-Key header
@@ -77,7 +79,9 @@ _SENSITIVE_PATTERNS: Final[list[tuple[re.Pattern[str], str]]] = [
     ),
     # password/secret fields
     (
-        re.compile(r"['\"]?(?:password|secret)['\"]?\s*[=:]\s*['\"]?[^'\"}\s]+", re.IGNORECASE),
+        re.compile(
+            r"['\"]?(?:password|secret)['\"]?\s*[=:]\s*['\"]?[^'\"}\s]+", re.IGNORECASE
+        ),
         "password=[REDACTED]",
     ),
 ]
