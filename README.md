@@ -20,8 +20,43 @@ Perfect for regression testing, load testing, and automated evaluation of your v
 - **Batch Testing**: Run hundreds of conversations concurrently
 - **CLI & Python API**: Quick testing via CLI or programmatic control
 - **LLM-as-Judge**: Bring your own quality evaluation with customizable criteria as a conversational hook
+- **GitHub Actions Integration**: Automated CI/CD testing with parallel persona execution
 
 See `examples/` for reference!
+
+## GitHub Actions CI/CD
+
+Run automated tests in your CI pipeline with multiple personas in parallel:
+
+```yaml
+- uses: ./.github/actions/layercode-gym-test
+  with:
+    personas: |
+      [
+        {
+          "background": "You are a potential customer",
+          "intent": "Learn about pricing and features"
+        },
+        {
+          "background": "You are a frustrated user",
+          "intent": "Get help with a problem"
+        }
+      ]
+    judge-enabled: true
+    judge-criteria: "Agent provides clear, helpful responses"
+    server-url: ${{ secrets.SERVER_URL }}
+    layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
+    layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
+    openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+**Features:**
+- ⚡ Run multiple personas in parallel for maximum speed
+- 🏛️ Automated quality evaluation with LLM judge
+- 📊 Detailed artifacts with transcripts and audio recordings
+- 🔍 Optional LogFire observability integration
+
+See [GitHub Actions documentation](docs/github-action.md) for complete setup guide.
 
 ## Quick Start
 

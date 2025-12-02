@@ -65,3 +65,76 @@ jobs:
           uv run python -c "from layercode_gym import LayercodeClient, UserSimulator, Persona, Settings"
           uv run python -c "from layercode_gym.callbacks import TurnCallback, ConversationCallback"
           uv run python -c "from layercode_gym.simulator.protocols import UserSimulatorProtocol, TTSEngineProtocol"
+
+  test-cli:
+    name: Test CLI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Add uv to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install package
+        run: uv sync
+
+      - name: Test CLI help
+        run: uv run layercode-gym --help
+
+      - name: Test CLI version
+        run: uv run python -c "import layercode_gym; print(f'Version: {layercode_gym.__version__}')"
+
+      - name: Test uvx installation
+        run: |
+          echo "Testing that package can be run via uvx (as used in GitHub Action)"
+          uvx --from layercode-gym layercode-gym --help
+
+  validate-action:
+    name: Validate GitHub Action
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate action.yml
+        run: |
+          if [ ! -f .github/actions/layercode-gym-test/action.yml ]; then
+            echo "Error: action.yml not found"
+            exit 1
+          fi
+          echo "✓ action.yml exists"
+
+      - name: Validate runner.py syntax
+        run: |
+          python -m py_compile .github/actions/layercode-gym-test/runner.py
+          echo "✓ runner.py is valid Python"
+
+      - name: Check runner.py imports (without execution)
+        run: |
+          echo "Checking that runner.py imports are valid..."
+          python -c "import ast; ast.parse(open('.github/actions/layercode-gym-test/runner.py').read())"
+          echo "✓ runner.py imports are syntactically valid"
+
+      - name: Validate README exists
+        run: |
+          if [ ! -f .github/actions/layercode-gym-test/README.md ]; then
+            echo "Error: Action README.md not found"
+            exit 1
+          fi
+          echo "✓ Action README.md exists"
