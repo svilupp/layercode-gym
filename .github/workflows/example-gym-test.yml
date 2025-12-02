@@ -1,0 +1,127 @@
+name: Example - LayerCode Gym Test
+
+# This workflow demonstrates how to use the LayerCode Gym Test action
+# It's set to manual trigger only - copy this to use in your own workflows
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      judge-enabled:
+        description: 'Enable automated judging'
+        type: boolean
+        default: true
+      max-turns:
+        description: 'Maximum conversation turns'
+        type: number
+        default: 5
+
+jobs:
+  example-test:
+    name: Example Voice Agent Test
+    runs-on: ubuntu-latest
+
+    # CRITICAL: Prevent concurrent runs for the same agent
+    # LayerCode agents support one webhook at a time
+    concurrency:
+      group: layercode-gym-${{ secrets.LAYERCODE_AGENT_ID }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run LayerCode Gym tests
+        id: gym-test
+        uses: ./.github/actions/layercode-gym-test
+        with:
+          # Define multiple personas to test in parallel
+          personas: |
+            [
+              {
+                "background": "You are a 35-year-old small business owner interested in AI technology",
+                "intent": "Learn about voice AI capabilities and how they can help your business"
+              },
+              {
+                "background": "You are a technical developer evaluating voice APIs for a project",
+                "intent": "Understand the technical integration requirements and API capabilities"
+              },
+              {
+                "background": "You are a frustrated customer who had a bad experience",
+                "intent": "Express your concerns and seek resolution"
+              }
+            ]
+
+          # Conversation settings
+          max-turns: ${{ inputs.max-turns }}
+          model: openai:gpt-4o-mini
+
+          # Judge configuration
+          judge-enabled: ${{ inputs.judge-enabled }}
+          judge-criteria: |
+            The agent must:
+            1. Provide clear and accurate information
+            2. Be empathetic and professional in tone
+            3. Offer actionable next steps or solutions
+            4. Not leave the user confused or frustrated
+          fail-on-judge-failure: true
+
+          # Required secrets (set in GitHub repository settings)
+          server-url: ${{ secrets.SERVER_URL }}
+          layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
+          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+
+          # Optional: Enable observability
+          logfire-token: ${{ secrets.LOGFIRE_TOKEN }}
+
+          # Upload results as artifacts
+          upload-artifacts: true
+
+      - name: Display results summary
+        if: always()
+        run: |
+          echo "### 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Conversations**: ${{ steps.gym-test.outputs.conversations-run }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Passed**: ${{ steps.gym-test.outputs.conversations-passed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed**: ${{ steps.gym-test.outputs.conversations-failed }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📁 Detailed results available in artifacts" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = ${{ steps.gym-test.outputs.conversations-passed }};
+            const failed = ${{ steps.gym-test.outputs.conversations-failed }};
+            const total = ${{ steps.gym-test.outputs.conversations-run }};
+
+            const emoji = failed === 0 ? '✅' : '⚠️';
+            const body = `${emoji} **LayerCode Gym Test Results**
+
+            - **Total Conversations**: ${total}
+            - **Passed**: ${passed}
+            - **Failed**: ${failed}
+
+            ${failed > 0 ? '⚠️ Some conversations failed judge evaluation. Check the artifacts for details.' : '✅ All conversations passed!'}
+
+            📁 Full results available in workflow artifacts.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Upload results to external system (optional)
+        if: always()
+        run: |
+          echo "You can add custom logic here to:"
+          echo "  - Upload results to your analytics platform"
+          echo "  - Send notifications to Slack/Discord"
+          echo "  - Update a dashboard"
+          echo "  - Trigger downstream workflows"
+          echo ""
+          echo "Results are available in: ${{ steps.gym-test.outputs.results-path }}"
