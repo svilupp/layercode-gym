@@ -436,11 +436,19 @@ async def run_conversation(args: argparse.Namespace) -> None:
 def main(argv: Sequence[str] | None = None) -> None:
     """Main entry point for the CLI."""
 
-    parser = create_parser()
-
     # If no arguments provided, show help
     if argv is None:
         argv = sys.argv[1:]
+
+    # Check if this is a webhook command
+    if len(argv) > 0 and argv[0] == "webhook":
+        from layercode_gym.webhook_cli import main as webhook_main
+
+        sys.exit(webhook_main(argv[1:]))
+
+    # Otherwise, use the regular gym CLI
+    parser = create_parser()
+
     if len(argv) == 0:
         parser.print_help()
         sys.exit(0)
