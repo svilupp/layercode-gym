@@ -124,7 +124,7 @@ async def main():
     # Create AI-driven simulator
     simulator = UserSimulator.from_agent(
         persona=persona,
-        model="openai:gpt-4o-mini",  # Fast and cost-effective
+        model="openai:gpt-5-mini",  # Fast and cost-effective
         max_turns=6,
         send_as_text=False  # Use TTS for realistic audio
     )
@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
 ```python
 # OpenAI (fast, cost-effective)
-model="openai:gpt-4o-mini"
+model="openai:gpt-5-mini"
 
 # Anthropic (higher quality, more expensive)
 model="anthropic:claude-3-5-sonnet"
@@ -167,50 +167,47 @@ model="gemini:gemini-1.5-pro"
 - Exploratory testing
 - Training data generation
 
-## Example 04: LLM-as-Judge Evaluation
+## Example 04: CriteriaJudge Evaluation
 
-Automatically evaluate conversation quality.
+Automatically evaluate conversation quality with pass/fail criteria.
 
 **File:** `examples/04_callbacks_judge.py`
 
 ```python
 import asyncio
-from layercode_gym import LayercodeClient, UserSimulator
-from layercode_gym.callbacks import create_judge_callback
+from layercode_gym import CriteriaJudge, LayercodeClient, Settings, UserSimulator
 
 async def main():
-    # Create simulator
-    simulator = UserSimulator.from_text(
-        messages=[
-            "Hello! I need help with my account.",
-            "I can't log in to the dashboard.",
-            "My email is user@example.com",
-            "Thanks for your help!"
-        ],
-        send_as_text=True
-    )
+    settings = Settings.load()
 
-    # Create judge callback
-    judge = create_judge_callback(
+    # Create judge with true/false criteria
+    judge = CriteriaJudge(
         criteria=[
             "Did the agent understand the user's problem?",
             "Did the agent provide clear next steps?",
             "Was the agent polite and professional?",
-            "Did the conversation flow naturally?",
-            "Did the agent ask for necessary information?"
         ],
-        model="openai:gpt-4o"  # More reliable for evaluation
+        # Note: gpt-5-mini is fast/cheap for testing; use gpt-5 for production
+        model="openai:gpt-5-mini"
     )
 
-    # Run with judge
+    async def on_end(log):
+        result = await judge.evaluate(log)
+        print(f"Overall: {'PASS' if result.overall_pass else 'FAIL'}")
+        print(f"Reasoning: {result.reasoning}")
+        judge.save_results(result, log.conversation_id, settings.output_root)
+
+    simulator = UserSimulator.from_text(
+        messages=["Hello!", "I need help.", "Thanks!"],
+        send_as_text=True
+    )
+
     client = LayercodeClient(
         simulator=simulator,
-        turn_callback=judge
+        settings=settings,
+        conversation_callback=on_end
     )
-    conversation_id = await client.run()
-
-    print(f"Conversation ID: {conversation_id}")
-    print(f"Check judge_results.json for evaluation")
+    await client.run()
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -218,38 +215,32 @@ if __name__ == "__main__":
 
 **Judge results:**
 
-After the conversation, check `conversations/<id>/judge_results.json`:
+After the conversation, check `conversations/<id>/judge_evaluation.json`:
 
 ```json
 {
-  "overall_score": 8.5,
-  "criteria_scores": {
-    "Did the agent understand the user's problem?": 9,
-    "Did the agent provide clear next steps?": 8,
-    "Was the agent polite and professional?": 10,
-    "Did the conversation flow naturally?": 8,
-    "Did the agent ask for necessary information?": 7
-  },
-  "feedback": "The agent handled the user's login issue well...",
-  "suggestions": [
-    "Could have proactively asked about error messages",
-    "Response time was good but could be faster"
-  ]
+  "criteria": [
+    {"id": 1, "criterion": "Did the agent understand the user's problem?", "passed": true},
+    {"id": 2, "criterion": "Did the agent provide clear next steps?", "passed": true},
+    {"id": 3, "criterion": "Was the agent polite and professional?", "passed": true}
+  ],
+  "overall_pass": true,
+  "reasoning": "The agent correctly identified the issue and provided helpful guidance..."
 }
 ```
 
 **Best practices:**
 
-- Use specific, measurable criteria
-- Include both task-focused and interaction-focused criteria
-- Use GPT-4 or Claude Sonnet for more reliable evaluation
-- Review judge feedback to improve your agent
+- Write criteria as yes/no questions that can be objectively answered
+- Use `gpt-5-mini` for fast iteration, `gpt-5` for production
+- Add `additional_context` to explain the scenario being tested
+- Review reasoning to understand failures
 
 **Use cases:**
 - Automated quality assurance
 - A/B testing different agent configurations
-- Tracking quality metrics over time
-- Identifying areas for improvement
+- Regression testing with known criteria
+- Prompt compliance verification
 
 ## Example 05: Batch Evaluation
 
@@ -348,6 +339,72 @@ print(f"Average latency across all conversations: {avg_latency}ms")
 - Regression testing multiple scenarios
 - Gathering statistics across conversations
 - Finding edge cases and failure modes
+
+## Example 06: Custom Data Processor
+
+Process `response.data` events (tool calls, UI updates) into text the AI simulator can "see".
+
+**File:** `examples/06_outdoor_shop_eval.py`
+
+```python
+from typing import Any
+from layercode_gym import LayercodeClient, CriteriaJudge
+
+def product_data_processor(data: dict[str, Any]) -> str:
+    """Convert response.data to human-readable text."""
+    tool = data.get("tool", "")
+    if tool == "search_products":
+        products = data.get("payload", {}).get("products", [])
+        names = [p.get("name") for p in products[:3]]
+        return f"[SCREEN: Products shown: {', '.join(names)}]"
+    return ""
+
+client = LayercodeClient(
+    simulator=simulator,
+    data_processor=product_data_processor,  # AI sees tool results
+)
+```
+
+**Use cases:**
+- Let AI users react to displayed products/orders/data
+- Test tool call rendering and UI updates
+- Verify response.data streaming works correctly
+
+## Example 07: Custom Judge with PydanticAI
+
+Build your own judge with custom output types for domain-specific evaluation.
+
+**File:** `examples/07_custom_judge.py`
+
+```python
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+
+class MyEvaluation(BaseModel):
+    greeted_user: bool = Field(description="Did assistant greet appropriately?")
+    answered_questions: bool = Field(description="Were all questions answered?")
+    summary: str = Field(description="Brief explanation")
+
+# Note: gpt-5-mini is fast/cheap for testing; use gpt-5 for production
+custom_judge = Agent(
+    "openai:gpt-5-mini",
+    output_type=MyEvaluation,
+    system_prompt="Evaluate the assistant's performance strictly."
+)
+
+async def evaluate(log):
+    transcript = "\n".join(
+        f"[{i}] {t.assistant_message.content}"
+        for i, t in enumerate(log.turns) if t.assistant_message
+    )
+    result = await custom_judge.run(f"Evaluate:\n{transcript}")
+    return result.output
+```
+
+**When to use custom judges:**
+- You need numerical scores instead of pass/fail
+- Domain-specific output fields (e.g., `tone_score`, `accuracy_rating`)
+- Complex evaluation logic beyond simple criteria
 
 ## Advanced Examples
 

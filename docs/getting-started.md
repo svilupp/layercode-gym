@@ -35,7 +35,7 @@ Don't have a server yet? Launch one quickly with auto-tunneling:
 
 ```bash
 # Launch a quickstart server with Cloudflare tunnel
-uvx layercode-create-app run --tunnel
+uvx layercode-create-app run --tunnel --unsafe-update-webhook
 
 # This will:
 # - Start a local backend server
@@ -47,7 +47,7 @@ uvx layercode-create-app run --tunnel
 
 The tunnel URL will look like: `https://random-name.trycloudflare.com`
 
-Copy this URL and configure it in your [Layercode dashboard](https://dash.layercode.com) under your agent's settings.
+!! Caution: `--unsafe-update-webhook` automatically updates the webhook URL in the Layercode dashboard!
 
 ## Installation
 
