@@ -39,7 +39,7 @@ async def main() -> None:
 
     # SIMPLE MODE: Create simulator with persona and defaults
     # The from_agent() method automatically:
-    # - Creates a default PydanticAI agent (openai:gpt-4o-mini)
+    # - Creates a default PydanticAI agent (openai:gpt-5-mini)
     # - Loads the prompt template from prompts/basic_agent.txt
     # - Injects persona into the agent's system prompt
     # - Manages conversation history across turns
@@ -84,7 +84,7 @@ async def main() -> None:
     print("=" * 60)
     print(f"👤 Persona: {persona.background_context[:60]}...")
     print(f"🎯 Intent: {persona.intent[:60]}...")
-    print("🤖 Agent: OpenAI GPT-4o-mini (default)")
+    print("🤖 Agent: OpenAI GPT-5-mini (default)")
     print("🎙️  Audio: TTS auto-generated (OpenAI TTS)")
     print("💬 Max turns: 3")
     print("=" * 60)

@@ -39,7 +39,12 @@ from .models.events import (
     UserTranscriptEvent,
     UserTranscriptInterimEvent,
 )
-from .simulator.protocols import UserRequest, UserResponse, UserSimulatorProtocol
+from .simulator.protocols import (
+    ResponseDataProcessor,
+    UserRequest,
+    UserResponse,
+    UserSimulatorProtocol,
+)
 from .storage import ConversationStorage
 from .utils.audio import (
     base64_to_segment,
@@ -91,10 +96,23 @@ class AssistantState:
 
 @dataclass(slots=True)
 class LayercodeClient:
+    """Async client for orchestrating voice conversations with LayerCode agents.
+
+    Attributes:
+        simulator: User simulator for generating responses
+        settings: Configuration settings
+        turn_callback: Callback invoked after each turn completes
+        conversation_callback: Callback invoked when conversation ends
+        data_processor: Processor for response.data events (converts to text for AI context)
+        playback_ack_delay: Delay before acknowledging playback completion
+        assistant_idle_timeout: Seconds of silence before triggering user turn
+    """
+
     simulator: UserSimulatorProtocol
     settings: Settings = DEFAULT_SETTINGS
     turn_callback: TurnCallback | None = None
     conversation_callback: ConversationCallback | None = None
+    data_processor: ResponseDataProcessor | None = None
     playback_ack_delay: float = 0.4
     assistant_idle_timeout: float = (
         3.0  # Seconds of silence before triggering user turn
@@ -111,6 +129,7 @@ class LayercodeClient:
     _assistant_idle_task: asyncio.Task[None] | None = None
     _user_turn_event: asyncio.Event = field(default_factory=asyncio.Event)
     _user_turn_in_progress: bool = False
+    _accumulated_data: list[dict[str, Any]] = field(default_factory=list)
 
     async def run(
         self,
@@ -282,6 +301,8 @@ class LayercodeClient:
                     storage.store_data_payload(
                         data_event["content"], name=data_event["turn_id"]
                     )
+                    # Accumulate data for processing by data_processor
+                    self._accumulated_data.append(data_event["content"])
                 case _:
                     logger.error("Unhandled event: %s", event_type)
         await websocket.close()
@@ -411,15 +432,26 @@ class LayercodeClient:
         self._user_turn_started_at = datetime.now(timezone.utc)
         logger.info("Handling user turn, requesting response from simulator")
 
+        # Process accumulated response.data events into text for AI context
+        data_text: str | None = None
+        if self._accumulated_data and self.data_processor:
+            processed_parts = [self.data_processor(d) for d in self._accumulated_data]
+            # Filter out empty strings and join
+            non_empty = [p for p in processed_parts if p]
+            if non_empty:
+                data_text = "\n".join(non_empty)
+
         request = UserRequest(
             conversation_id=log.conversation_id,
             turn_id=turn_id,
             text=self._latest_user_text or None,
-            data=(),
+            data=tuple(self._accumulated_data),
+            data_text=data_text,
         )
         response = await self.simulator.get_response(request)
         logger.debug("Simulator response: %s", response)
         self._latest_user_text = ""
+        self._accumulated_data.clear()  # Clear after processing
         if response is None or not response.has_payload:
             logger.info("No payload from simulator, concluding conversation")
             await self._conclude_conversation(websocket, storage, log)
@@ -575,11 +607,14 @@ class LayercodeClient:
         log: ConversationLog,
     ) -> None:
         self._stop_requested = True
-        await websocket.close()
+        # Finalize stats and save transcript before callback
         await self._finalize(storage, log)
+        # Run callback BEFORE closing websocket to prevent task cancellation
         callback = self.conversation_callback or NoOpCallback()
         await callback(log)
         self._finalised = True
+        # Close websocket last (this will complete the consumer task)
+        await websocket.close()
 
     async def _finalize(
         self, storage: ConversationStorage, log: ConversationLog

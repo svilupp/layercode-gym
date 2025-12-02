@@ -2,8 +2,8 @@
 
 **Does your voice AI agent even lift, bro?**
 
-!!! warning "v0.0.1-alpha"
-    This toolkit is an early alpha and may contain bugs or breaking changes. Please test thoroughly before using in production.
+!!! warning "v0.1.0"
+    This toolkit is an early release and may contain bugs or breaking changes. Please test thoroughly before using in production.
 
 LayerCode Gym is an **unofficial** testing environment for voice AI agents built on [Layercode.com](https://layercode.com). It simulates real voice clients end-to-end, allowing you to run hundreds of test scenarios and understand how your agent will perform in production.
 

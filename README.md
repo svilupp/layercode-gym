@@ -6,7 +6,7 @@
 
 **Does your voice AI agent even lift, bro?**
 
-> **Warning (v0.0.1-alpha):** This toolkit is an early alpha and may contain bugs or breaking changes. Please test thoroughly before using in production.
+> **Warning (v0.1.0):** This toolkit is an early release and may contain bugs or breaking changes. Please test thoroughly before using in production.
 
 This is an **unofficial** testing gym for voice AI agents built on [Layercode.com](https://layercode.com). Quickly spin up a testing environment to run through hundreds of scenarios and understand how your agent will perform in production.
 
@@ -29,9 +29,10 @@ See `examples/` for reference!
 
 No server yet? Launch one quickly:
 ```bash
-uvx layercode-create-app run --tunnel
+uvx layercode-create-app run --tunnel --unsafe-update-webhook
 # Displays tunnel URL to enter in Layercode dashboard
 ```
+!! Caution: `--unsafe-update-webhook` automatically updates the webhook URL in the Layercode dashboard!
 
 ### CLI Quick Test (No Installation)
 
@@ -142,7 +143,7 @@ simulator = UserSimulator.from_agent(
         background_context="You are a 35-year-old small business owner",
         intent="You want to understand pricing and features"
     ),
-    model="openai:gpt-4o-mini",
+    model="openai:gpt-5-mini",
     max_turns=5
 )
 ```
@@ -154,8 +155,10 @@ The `examples/` directory contains ready-to-run scripts:
 - **01_text_messages.py** - Simple text conversation for quick testing
 - **02_audio_file.py** - Stream pre-recorded audio to test transcription
 - **03_agent_persona.py** - AI-driven user with dynamic responses
-- **04_callbacks_judge.py** - Automated quality evaluation with LLM judge
+- **04_callbacks_judge.py** - CriteriaJudge for automated pass/fail evaluation
 - **05_batch_evaluation.py** - Run multiple conversations concurrently
+- **06_outdoor_shop_eval.py** - Custom data processor with domain-specific criteria
+- **07_custom_judge.py** - Build your own judge with custom PydanticAI output types
 
 Run any example:
 ```bash
@@ -166,27 +169,33 @@ See [full documentation](https://svilupp.github.io/layercode-gym/examples) for d
 
 ## LLM-as-Judge Evaluation
 
-Automatically evaluate conversation quality:
+Evaluate conversations against pass/fail criteria using `CriteriaJudge`:
 
 ```python
-from layercode_gym.callbacks import create_judge_callback
+from layercode_gym import CriteriaJudge, LayercodeClient, Settings
 
-judge = create_judge_callback(
+judge = CriteriaJudge(
     criteria=[
         "Did the agent answer all user questions?",
         "Was the agent polite and professional?",
         "Did the conversation flow naturally?"
     ],
-    model="openai:gpt-4o"
+    # Note: gpt-5-mini is fast/cheap for testing; use gpt-5 for production
+    model="openai:gpt-5-mini"
 )
+
+async def on_end(log):
+    result = await judge.evaluate(log)
+    print(f"Overall: {'PASS' if result.overall_pass else 'FAIL'}")
+    judge.save_results(result, log.conversation_id, Settings.load().output_root)
 
 client = LayercodeClient(
     simulator=simulator,
-    turn_callback=judge
+    conversation_callback=on_end
 )
 ```
 
-Results saved to `conversations/<id>/judge_results.json` with scores and feedback.
+Results saved to `conversations/<id>/judge_evaluation.json` with reasoning and per-criterion pass/fail.
 
 ## Batch Testing
 
@@ -214,7 +223,7 @@ conversations/<conversation_id>/
 ├── conversation_mix.wav     # Combined audio (user + assistant)
 ├── user_0.wav              # Individual user turns
 ├── assistant_0.wav         # Individual assistant turns
-└── judge_results.json      # LLM evaluation (if enabled)
+└── judge_evaluation.json   # CriteriaJudge results (if enabled)
 ```
 
 Transcript includes TTFAB, latency stats, turn counts, and full message history.
@@ -265,7 +274,7 @@ simulator = UserSimulator.from_agent(agent=agent, deps=my_deps)
 ```
 
 **Available models:**
-- `openai:gpt-4o` / `openai:gpt-4o-mini`
+- `openai:gpt-5` / `openai:gpt-5-mini`
 - `anthropic:claude-3-5-sonnet`
 - `ollama:llama3` (local)
 - `gemini:gemini-1.5-pro`
