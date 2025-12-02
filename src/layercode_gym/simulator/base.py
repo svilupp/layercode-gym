@@ -157,7 +157,7 @@ class UserSimulator(UserSimulatorProtocol):
             agent: Custom PydanticAI agent (if None, creates default basic agent)
             deps: Custom deps for agent.run() (if None, creates default with persona)
             persona: Persona for default agent (used only if deps is None)
-            model: Model string for default agent (default: "openai:gpt-4o-mini")
+            model: Model string for default agent (default: "openai:gpt-5-mini")
             max_turns: Maximum conversation turns before returning None
             send_as_text: If True, send text responses; if False, use TTS for audio
             tts_engine: TTS engine for audio generation (auto-created if needed)
@@ -201,7 +201,7 @@ class UserSimulator(UserSimulatorProtocol):
 
         # Resolve agent: use provided or create default
         if agent is None:
-            resolved_model = model or "openai:gpt-4o-mini"
+            resolved_model = model or "openai:gpt-5-mini"
             agent = create_basic_agent(resolved_model)
 
         # Resolve deps: use provided or create default

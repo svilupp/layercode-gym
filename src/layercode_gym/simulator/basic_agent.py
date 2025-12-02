@@ -24,11 +24,11 @@ class BasicAgentDeps:
     template: textprompts.Prompt
 
 
-def create_basic_agent(model: str = "openai:gpt-4o-mini") -> Agent[BasicAgentDeps, str]:
+def create_basic_agent(model: str = "openai:gpt-5-mini") -> Agent[BasicAgentDeps, str]:
     """Factory function to create the default basic agent.
 
     Args:
-        model: Model string (e.g., "openai:gpt-4o-mini", "anthropic:claude-3-5-sonnet")
+        model: Model string (e.g., "openai:gpt-5-mini", "anthropic:claude-sonnet-4-5")
 
     Returns:
         Configured PydanticAI agent with system prompt injection

@@ -106,6 +106,10 @@ class AgentTurnStrategy:
         # Build prompt from request
         prompt = request.text or "Continue the conversation."
 
+        # Append processed data context if available (what the user "sees" on screen)
+        if request.data_text:
+            prompt = f"{prompt}\n\n[DATA RECEIVED]\n{request.data_text}"
+
         # Run agent with conversation history
         result = await self.agent.run(
             prompt,

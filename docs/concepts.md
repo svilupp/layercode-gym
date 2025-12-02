@@ -94,7 +94,7 @@ persona = Persona(
 
 simulator = UserSimulator.from_agent(
     persona=persona,
-    model="openai:gpt-4o-mini",  # or "anthropic:claude-3-5-sonnet"
+    model="openai:gpt-5-mini",  # or "anthropic:claude-3-5-sonnet"
     max_turns=5,
     send_as_text=False  # Auto-creates TTS engine
 )
@@ -225,39 +225,45 @@ client = LayercodeClient(
 )
 ```
 
-### LLM-as-Judge
+### CriteriaJudge
 
-Built-in callback for automated quality evaluation:
+Built-in judge for automated pass/fail evaluation against criteria:
 
 ```python
-from layercode_gym.callbacks import create_judge_callback
+from layercode_gym import CriteriaJudge, Settings
 
-judge = create_judge_callback(
+judge = CriteriaJudge(
     criteria=[
         "Did the agent answer all user questions?",
         "Was the agent polite and professional?",
         "Did the conversation flow naturally?"
     ],
-    model="openai:gpt-4o"  # or "anthropic:claude-3-5-sonnet"
+    # Note: gpt-5-mini is fast/cheap for testing; use gpt-5 for production
+    model="openai:gpt-5-mini"
 )
+
+async def conversation_callback(log):
+    result = await judge.evaluate(log)
+    print(f"Overall: {'PASS' if result.overall_pass else 'FAIL'}")
+    judge.save_results(result, log.conversation_id, Settings.load().output_root)
 
 client = LayercodeClient(
     simulator=simulator,
-    turn_callback=judge
+    conversation_callback=conversation_callback
 )
 ```
 
-The judge results are saved to `conversations/<id>/judge_results.json`:
+Results are saved to `conversations/<id>/judge_evaluation.json`:
 
 ```json
 {
-  "overall_score": 8.5,
-  "criteria_scores": {
-    "Did the agent answer all user questions?": 9,
-    "Was the agent polite and professional?": 10,
-    "Did the conversation flow naturally?": 7
-  },
-  "feedback": "The agent was helpful and polite..."
+  "criteria": [
+    {"id": 1, "criterion": "Did the agent answer all user questions?", "passed": true},
+    {"id": 2, "criterion": "Was the agent polite and professional?", "passed": true},
+    {"id": 3, "criterion": "Did the conversation flow naturally?", "passed": false}
+  ],
+  "overall_pass": false,
+  "reasoning": "The agent answered questions well but responses felt scripted..."
 }
 ```
 
@@ -273,7 +279,7 @@ conversations/<conversation_id>/
 ├── user_1.wav
 ├── assistant_0.wav         # Individual assistant audio files
 ├── assistant_1.wav
-└── judge_results.json      # If using judge callback
+└── judge_evaluation.json   # If using CriteriaJudge
 ```
 
 ### Transcript Structure

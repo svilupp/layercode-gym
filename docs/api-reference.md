@@ -19,7 +19,8 @@ LayercodeClient(
     simulator: UserSimulatorProtocol,
     settings: Settings | None = None,
     turn_callback: TurnCallback | None = None,
-    conversation_callback: ConversationCallback | None = None
+    conversation_callback: ConversationCallback | None = None,
+    data_processor: ResponseDataProcessor | None = None
 )
 ```
 
@@ -29,6 +30,7 @@ LayercodeClient(
 - `settings`: Optional Settings object (defaults to environment variables)
 - `turn_callback`: Optional callback called after each turn
 - `conversation_callback`: Optional callback called at conversation end
+- `data_processor`: Optional processor for `response.data` events (tool calls, UI updates)
 
 #### Methods
 
@@ -131,7 +133,7 @@ def from_agent(
     persona: Persona | None = None,
     agent: Agent | None = None,
     deps: Any = None,
-    model: str = "openai:gpt-4o-mini",
+    model: str = "openai:gpt-5-mini",
     max_turns: int = 5,
     send_as_text: bool = False,
     tts_engine: TTSEngineProtocol | None = None,
@@ -146,7 +148,7 @@ Create an AI-driven simulator with dynamic responses.
 - `persona`: Persona object defining user background and intent
 - `agent`: Optional custom PydanticAI Agent (overrides persona)
 - `deps`: Optional dependencies for custom agent
-- `model`: Model name (e.g., "openai:gpt-4o-mini", "anthropic:claude-3-5-sonnet")
+- `model`: Model name (e.g., "openai:gpt-5-mini", "anthropic:claude-3-5-sonnet")
 - `max_turns`: Maximum number of turns before ending
 - `send_as_text`: If True, send as text; if False, use TTS
 - `tts_engine`: Optional custom TTS engine
@@ -162,7 +164,7 @@ simulator = UserSimulator.from_agent(
         background_context="You are a busy executive",
         intent="You want quick answers"
     ),
-    model="openai:gpt-4o-mini",
+    model="openai:gpt-5-mini",
     max_turns=5
 )
 ```
@@ -267,44 +269,90 @@ LOGFIRE_TOKEN="..."  # Optional: enable LogFire observability
 
 ---
 
-## Callbacks
+## Evaluation
 
-### create_judge_callback()
+### CriteriaJudge
 
 ```python
-from layercode_gym.callbacks import create_judge_callback
-
-def create_judge_callback(
-    criteria: list[str],
-    model: str = "openai:gpt-4o"
-) -> TurnCallback
+from layercode_gym import CriteriaJudge
 ```
 
-Create an LLM-as-judge callback for evaluating conversation quality.
+LLM-as-judge for evaluating conversations against pass/fail criteria.
+
+#### Constructor
+
+```python
+CriteriaJudge(
+    criteria: Sequence[str],
+    *,
+    additional_context: str | None = None,
+    model: str = "openai:gpt-5-mini"
+)
+```
 
 **Parameters:**
 
-- `criteria`: List of evaluation criteria as questions
-- `model`: Model to use for evaluation (e.g., "openai:gpt-4o", "anthropic:claude-3-5-sonnet")
+- `criteria`: List of evaluation criteria as true/false questions
+- `additional_context`: Optional context about the conversation's purpose
+- `model`: LLM model for evaluation (use `gpt-5` for production accuracy)
 
-**Returns:** `TurnCallback` function
+#### Methods
+
+##### evaluate()
+
+```python
+async def evaluate(log: ConversationLog) -> JudgeOutput
+```
+
+Evaluate a conversation against the defined criteria.
+
+##### save_results()
+
+```python
+def save_results(output: JudgeOutput, conversation_id: str, output_root: Path) -> Path
+```
+
+Save evaluation results to `judge_evaluation.json` in the conversation folder.
 
 **Example:**
 
 ```python
-judge = create_judge_callback(
+judge = CriteriaJudge(
     criteria=[
         "Did the agent answer the user's question?",
         "Was the agent polite?"
     ],
-    model="openai:gpt-4o"
+    # Note: gpt-5-mini is fast/cheap; use gpt-5 for production
+    model="openai:gpt-5-mini"
 )
+
+async def on_end(log):
+    result = await judge.evaluate(log)
+    judge.save_results(result, log.conversation_id, settings.output_root)
 
 client = LayercodeClient(
     simulator=simulator,
-    turn_callback=judge
+    conversation_callback=on_end
 )
 ```
+
+### JudgeOutput
+
+```python
+from layercode_gym import JudgeOutput
+```
+
+Structured output from CriteriaJudge.
+
+**Attributes:**
+
+- `reasoning: str` - Explanation of the evaluation
+- `criteria_results: list[dict]` - Per-criterion results: `[{"criterion_id": 1, "passed": true}, ...]`
+- `overall_pass: bool` - True only if ALL criteria passed
+
+---
+
+## Callbacks
 
 ### TurnCallback
 
@@ -466,6 +514,64 @@ class MyTTSEngine(TTSEngineProtocol):
         return output_path
 ```
 
+### ResponseDataProcessor
+
+```python
+from layercode_gym import ResponseDataProcessor
+```
+
+Protocol for processing `response.data` events into text for AI context.
+
+When the voice agent emits `response.data` events (tool calls, UI updates), this processor converts the raw data into human-readable text that the AI user simulator can "see" and react to.
+
+#### Methods
+
+##### \_\_call\_\_()
+
+```python
+def __call__(self, data: dict[str, Any]) -> str
+```
+
+Convert a response.data payload to text.
+
+**Parameters:**
+
+- `data: dict` - The raw data dictionary from response.data event
+
+**Returns:** `str` - Human-readable description (empty string to skip)
+
+**Example:**
+
+```python
+from typing import Any
+from layercode_gym import ResponseDataProcessor
+
+class ProductProcessor(ResponseDataProcessor):
+    def __call__(self, data: dict[str, Any]) -> str:
+        if data.get("tool") == "search_products":
+            products = data.get("products", [])
+            return f"[DISPLAYED: {len(products)} products]"
+        return ""
+
+client = LayercodeClient(
+    simulator=simulator,
+    data_processor=ProductProcessor()
+)
+```
+
+**Built-in processors:**
+
+```python
+from layercode_gym import default_data_processor, XMLDataProcessor
+
+# Default: formats data as XML (LLM-friendly)
+client = LayercodeClient(data_processor=default_data_processor)
+
+# Configurable XML processor
+processor = XMLDataProcessor(root_tag="tool_result")
+client = LayercodeClient(data_processor=processor)
+```
+
 ---
 
 ## Data Models
@@ -480,9 +586,11 @@ Request data passed to user simulator.
 
 **Attributes:**
 
-- `agent_transcript: list[str]` - All agent messages so far
-- `turn_number: int` - Current turn number (0-indexed)
 - `conversation_id: str` - Unique conversation ID
+- `turn_id: str | None` - Current turn identifier
+- `text: str | None` - Transcribed text from assistant's last response
+- `data: Sequence[dict]` - Raw `response.data` payloads from current turn
+- `data_text: str | None` - Processed data as human-readable text (if data_processor set)
 
 ### UserResponse
 

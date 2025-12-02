@@ -243,7 +243,7 @@ class ConversationDeps:
 
 # Create custom agent
 agent = Agent(
-    "openai:gpt-4o",
+    "openai:gpt-5",
     system_prompt="""
     You are simulating a frustrated customer who has been on hold
     for 30 minutes. You are impatient and want quick resolution.
