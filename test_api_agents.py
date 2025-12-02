@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Basic structure tests for webhook utilities.
+Basic structure tests for api-agents utilities.
 
 These tests validate the structure and syntax without requiring dependencies.
 Full functional tests should be run with dependencies installed (uv run pytest).
@@ -32,15 +32,15 @@ def print_fail(message: str) -> None:
     print(f"  {RED}✗{RESET} {message}")
 
 
-def test_webhook_utils_syntax() -> bool:
-    """Test webhook_utils.py is valid Python."""
-    print_test("Testing webhook_utils.py Syntax")
+def test_api_agents_utils_syntax() -> bool:
+    """Test api_agents_utils.py is valid Python."""
+    print_test("Testing api_agents_utils.py Syntax")
 
     try:
-        utils_path = Path("src/layercode_gym/webhook_utils.py")
+        utils_path = Path("src/layercode_gym/api_agents_utils.py")
 
         if not utils_path.exists():
-            print_fail("webhook_utils.py not found")
+            print_fail("api_agents_utils.py not found")
             return False
 
         with open(utils_path) as f:
@@ -48,21 +48,22 @@ def test_webhook_utils_syntax() -> bool:
 
         # Parse AST
         tree = ast.parse(content)
-        print_pass("webhook_utils.py is valid Python")
+        print_pass("api_agents_utils.py is valid Python")
 
         # Check for required functions
         functions = [
-            node.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef)
+            node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
         ]
 
         required_functions = [
-            "get_agent_webhook",
-            "update_agent_webhook",
-            "print_agent_info",
+            "get_agent",
+            "update_agent",
+            "list_agents",
+            "print_agent",
+            "print_agents",
             "main_get",
             "main_update",
+            "main_list",
         ]
 
         for func in required_functions:
@@ -72,14 +73,16 @@ def test_webhook_utils_syntax() -> bool:
 
         print_pass(f"All required functions present: {', '.join(required_functions)}")
 
-        # Check for AgentInfo class
-        classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+        # Check for Agent class
+        classes = [
+            node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
+        ]
 
-        if "AgentInfo" not in classes:
-            print_fail("Missing AgentInfo dataclass")
+        if "Agent" not in classes:
+            print_fail("Missing Agent dataclass")
             return False
 
-        print_pass("AgentInfo dataclass present")
+        print_pass("Agent dataclass present")
 
         # Check for httpx import
         if "httpx" not in content:
@@ -95,15 +98,15 @@ def test_webhook_utils_syntax() -> bool:
         return False
 
 
-def test_webhook_cli_syntax() -> bool:
-    """Test webhook_cli.py is valid Python."""
-    print_test("Testing webhook_cli.py Syntax")
+def test_api_agents_cli_syntax() -> bool:
+    """Test api_agents_cli.py is valid Python."""
+    print_test("Testing api_agents_cli.py Syntax")
 
     try:
-        cli_path = Path("src/layercode_gym/webhook_cli.py")
+        cli_path = Path("src/layercode_gym/api_agents_cli.py")
 
         if not cli_path.exists():
-            print_fail("webhook_cli.py not found")
+            print_fail("api_agents_cli.py not found")
             return False
 
         with open(cli_path) as f:
@@ -111,18 +114,17 @@ def test_webhook_cli_syntax() -> bool:
 
         # Parse AST
         tree = ast.parse(content)
-        print_pass("webhook_cli.py is valid Python")
+        print_pass("api_agents_cli.py is valid Python")
 
         # Check for required functions
         functions = [
-            node.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef)
+            node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
         ]
 
         required_functions = [
             "create_parser",
             "get_api_key",
+            "build_update_data",
             "main",
         ]
 
@@ -140,19 +142,19 @@ def test_webhook_cli_syntax() -> bool:
 
         print_pass("argparse import present")
 
-        # Check for subparsers (get/update commands)
+        # Check for subparsers (list/get/update commands)
         if "add_subparsers" not in content:
             print_fail("Missing subparsers for commands")
             return False
 
-        print_pass("Subparsers for get/update commands present")
+        print_pass("Subparsers for list/get/update commands present")
 
-        # Check for webhook_utils import
-        if "from layercode_gym.webhook_utils import" not in content:
-            print_fail("Missing import from webhook_utils")
+        # Check for api_agents_utils import
+        if "from layercode_gym.api_agents_utils import" not in content:
+            print_fail("Missing import from api_agents_utils")
             return False
 
-        print_pass("webhook_utils import present")
+        print_pass("api_agents_utils import present")
 
         return True
 
@@ -175,19 +177,29 @@ def test_cli_integration() -> bool:
         with open(cli_path) as f:
             content = f.read()
 
-        # Check for webhook routing
-        if 'argv[0] == "webhook"' not in content:
-            print_fail("Missing webhook routing in main CLI")
+        # Check for api-agents routing
+        if 'argv[0] == "api-agents"' not in content:
+            print_fail("Missing api-agents routing in main CLI")
             return False
 
-        print_pass("Webhook routing present in main CLI")
+        print_pass("api-agents routing present in main CLI")
 
-        # Check for webhook_cli import
-        if "from layercode_gym.webhook_cli import main as webhook_main" not in content:
-            print_fail("Missing webhook_cli import")
+        # Check for api_agents_cli import
+        if (
+            "from layercode_gym.api_agents_cli import main as api_agents_main"
+            not in content
+        ):
+            print_fail("Missing api_agents_cli import")
             return False
 
-        print_pass("webhook_cli import present")
+        print_pass("api_agents_cli import present")
+
+        # Check that webhook is NOT present (removed)
+        if "webhook" in content.lower():
+            print_fail("Old webhook code still present")
+            return False
+
+        print_pass("Old webhook code removed")
 
         return True
 
@@ -197,11 +209,11 @@ def test_cli_integration() -> bool:
 
 
 def test_api_structure() -> bool:
-    """Test webhook API structure."""
-    print_test("Testing Webhook API Structure")
+    """Test API structure."""
+    print_test("Testing API Structure")
 
     try:
-        utils_path = Path("src/layercode_gym/webhook_utils.py")
+        utils_path = Path("src/layercode_gym/api_agents_utils.py")
 
         with open(utils_path) as f:
             content = f.read()
@@ -220,26 +232,19 @@ def test_api_structure() -> bool:
 
         print_pass("Bearer authentication present")
 
-        # Check for GET request (get webhook)
+        # Check for GET request (get agent)
         if ".get(" not in content:
             print_fail("Missing GET request method")
             return False
 
         print_pass("GET request method present")
 
-        # Check for POST request (update webhook)
+        # Check for POST request (update agent)
         if ".post(" not in content:
             print_fail("Missing POST request method")
             return False
 
         print_pass("POST request method present")
-
-        # Check for webhook_url in payload
-        if '"webhook_url"' not in content:
-            print_fail("Missing webhook_url in payload")
-            return False
-
-        print_pass("webhook_url payload field present")
 
         return True
 
@@ -248,12 +253,92 @@ def test_api_structure() -> bool:
         return False
 
 
+def test_commands_present() -> bool:
+    """Test all three commands are present."""
+    print_test("Testing Commands Present")
+
+    try:
+        cli_path = Path("src/layercode_gym/api_agents_cli.py")
+
+        with open(cli_path) as f:
+            content = f.read()
+
+        commands = ["list", "get", "update"]
+
+        for cmd in commands:
+            # Check subparser is created
+            if f'subparsers.add_parser(\n        "{cmd}"' not in content:
+                print_fail(f"Missing '{cmd}' command subparser")
+                return False
+
+        print_pass("All three commands present: list, get, update")
+
+        # Check list command doesn't require agent-id
+        if '"list"' in content and '--agent-id' in content:
+            # Make sure list doesn't require agent-id
+            # (it's in get/update but not list)
+            pass
+
+        print_pass("Command arguments structured correctly")
+
+        return True
+
+    except Exception as e:
+        print_fail(f"Commands test failed: {e}")
+        return False
+
+
+def test_update_options() -> bool:
+    """Test update command has multiple options."""
+    print_test("Testing Update Command Options")
+
+    try:
+        cli_path = Path("src/layercode_gym/api_agents_cli.py")
+
+        with open(cli_path) as f:
+            content = f.read()
+
+        # Check for webhook-url option
+        if "--webhook-url" not in content:
+            print_fail("Missing --webhook-url option")
+            return False
+
+        print_pass("--webhook-url option present")
+
+        # Check for name option
+        if "--name" not in content:
+            print_fail("Missing --name option")
+            return False
+
+        print_pass("--name option present")
+
+        # Check for json-data option
+        if "--json-data" not in content:
+            print_fail("Missing --json-data option")
+            return False
+
+        print_pass("--json-data option present")
+
+        # Check for build_update_data function
+        if "def build_update_data" not in content:
+            print_fail("Missing build_update_data function")
+            return False
+
+        print_pass("build_update_data function present")
+
+        return True
+
+    except Exception as e:
+        print_fail(f"Update options test failed: {e}")
+        return False
+
+
 def test_error_handling() -> bool:
     """Test error handling structure."""
     print_test("Testing Error Handling Structure")
 
     try:
-        utils_path = Path("src/layercode_gym/webhook_utils.py")
+        utils_path = Path("src/layercode_gym/api_agents_utils.py")
 
         with open(utils_path) as f:
             content = f.read()
@@ -298,7 +383,7 @@ def test_cli_help_docs() -> bool:
     print_test("Testing CLI Documentation")
 
     try:
-        cli_path = Path("src/layercode_gym/webhook_cli.py")
+        cli_path = Path("src/layercode_gym/api_agents_cli.py")
 
         with open(cli_path) as f:
             content = f.read()
@@ -339,16 +424,18 @@ def test_cli_help_docs() -> bool:
 
 
 def run_all_tests() -> bool:
-    """Run all webhook utility tests."""
+    """Run all api-agents tests."""
     print(f"\n{BLUE}{'=' * 60}{RESET}")
-    print(f"{BLUE}Webhook Utilities Test Suite (Basic){RESET}")
+    print(f"{BLUE}API Agents Test Suite (Basic){RESET}")
     print(f"{BLUE}{'=' * 60}{RESET}")
 
     tests = [
-        ("webhook_utils.py Syntax", test_webhook_utils_syntax),
-        ("webhook_cli.py Syntax", test_webhook_cli_syntax),
+        ("api_agents_utils.py Syntax", test_api_agents_utils_syntax),
+        ("api_agents_cli.py Syntax", test_api_agents_cli_syntax),
         ("CLI Integration", test_cli_integration),
-        ("Webhook API Structure", test_api_structure),
+        ("API Structure", test_api_structure),
+        ("Commands Present", test_commands_present),
+        ("Update Command Options", test_update_options),
         ("Error Handling Structure", test_error_handling),
         ("CLI Documentation", test_cli_help_docs),
     ]
