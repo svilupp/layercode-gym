@@ -440,11 +440,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     if argv is None:
         argv = sys.argv[1:]
 
-    # Check if this is a webhook command
-    if len(argv) > 0 and argv[0] == "webhook":
-        from layercode_gym.webhook_cli import main as webhook_main
+    # Check if this is an api-agents command
+    if len(argv) > 0 and argv[0] == "api-agents":
+        from layercode_gym.api_agents_cli import main as api_agents_main
 
-        sys.exit(webhook_main(argv[1:]))
+        sys.exit(api_agents_main(argv[1:]))
 
     # Otherwise, use the regular gym CLI
     parser = create_parser()

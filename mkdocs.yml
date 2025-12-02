@@ -72,7 +72,7 @@ nav:
   - Concepts: concepts.md
   - Examples: examples.md
   - GitHub Actions: github-action.md
-  - Webhook Utils: webhook-utils.md
+  - API Agents: api-agents.md
   - API Reference: api-reference.md
   - Advanced Usage: advanced.md
   - Roadmap: roadmap.md
