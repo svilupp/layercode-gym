@@ -92,7 +92,7 @@ jobs:
         run: uv run layercode-gym --help
 
       - name: Test CLI version
-        run: uv run python -c "import layercode_gym; print(f'Version: {layercode_gym.__version__}')"
+        run: uv run python -c "import layercode_gym; print('Version:', layercode_gym.__version__)"
 
       - name: Test uvx installation
         run: |
