@@ -29,9 +29,10 @@ See `examples/` for reference!
 
 No server yet? Launch one quickly:
 ```bash
-uvx layercode-create-app run --tunnel
+uvx layercode-create-app run --tunnel --unsafe-update-webhook
 # Displays tunnel URL to enter in Layercode dashboard
 ```
+!! Caution: `--unsafe-update-webhook` automatically updates the webhook URL in the Layercode dashboard!
 
 ### CLI Quick Test (No Installation)
 
