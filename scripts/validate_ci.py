@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import ast
 import importlib.util
-import json
 import os
 import re
 import sys
@@ -398,7 +397,12 @@ def test_runner_script() -> None:
     runner.test("Required Classes")
 
     classes = get_classes(tree)
-    required_classes = ["PersonaConfig", "ScriptConfig", "TestResult", "LayerCodeGymRunner"]
+    required_classes = [
+        "PersonaConfig",
+        "ScriptConfig",
+        "TestResult",
+        "LayerCodeGymRunner",
+    ]
 
     for cls in required_classes:
         if cls in classes:

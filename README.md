@@ -59,6 +59,19 @@ uvx layercode-gym run --agent \
 
 Run `uvx layercode-gym --help` to see available commands, or `uvx layercode-gym run --help` for all run options.
 
+### Manage Agent Webhooks (for CI)
+
+```bash
+# List all agents
+uvx layercode-gym api-agents list
+
+# Get agent details (use --json for full pipeline config)
+uvx layercode-gym api-agents get --agent-id ag-123
+
+# Update webhook URL (useful for PR testing)
+uvx layercode-gym api-agents update --agent-id ag-123 --webhook-url https://pr-backend.com/webhook
+```
+
 ### Python API
 
 ```bash
@@ -222,16 +235,11 @@ Run automated tests in your CI pipeline with multiple personas in parallel:
 - uses: ./.github/actions/layercode-gym-test
   with:
     personas: |
-      [
-        {
-          "background": "You are a potential customer",
-          "intent": "Learn about pricing and features"
-        },
-        {
-          "background": "You are a frustrated user",
-          "intent": "Get help with a problem"
-        }
-      ]
+      - background: You are a potential customer
+        intent: Learn about pricing and features
+
+      - background: You are a frustrated user
+        intent: Get help with a problem
     judge-enabled: true
     judge-criteria: |
       - Did the agent provide clear and helpful responses?
@@ -246,7 +254,16 @@ Run automated tests in your CI pipeline with multiple personas in parallel:
 - Detailed artifacts with transcripts and audio recordings
 - Optional LogFire observability integration
 
-See [GitHub Actions documentation](docs/github-action.md) for complete setup guide.
+**Tip:** Use the `api-agents` CLI to update your agent's webhook URL for PR testing:
+```bash
+# Point agent to PR-specific backend before running tests
+layercode-gym api-agents update --agent-id ag-123 --webhook-url https://pr-456.example.com/webhook
+
+# Restore original after tests
+layercode-gym api-agents update --agent-id ag-123 --webhook-url https://production.example.com/webhook
+```
+
+See [GitHub Actions documentation](docs/github-action.md) for complete setup guide, or [`api-agents` CLI docs](docs/api-agents.md) for webhook management.
 
 ## Conversation Outputs
 

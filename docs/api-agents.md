@@ -105,20 +105,28 @@ layercode-gym api-agents get --agent-id ag-123456 [--json]
 Agent ID: ag-123456
 Name: Production Voice Agent
 Webhook URL: https://production.example.com/webhook
+
+Tip: Use --json for full pipeline config (voice, transcription, speech, etc.)
 ```
 
-**Example Output (JSON)**:
+**Example Output (JSON)** - returns full pipeline configuration:
 ```json
 {
-  "agent_id": "ag-123456",
+  "id": "ag-123456",
   "name": "Production Voice Agent",
-  "webhook_url": "https://production.example.com/webhook"
+  "type": "voice",
+  "config": {
+    "endpoint": "https://production.example.com/webhook",
+    "transcription": { "provider": "deepgram", ... },
+    "speech": { "provider": "elevenlabs", ... },
+    ...
+  }
 }
 ```
 
 **Options**:
 - `--agent-id ID` (required) - Agent ID (e.g., ag-123456)
-- `--json` - Output as JSON object
+- `--json` - Output full pipeline config as JSON (includes voice, transcription, speech settings)
 - `--api-key KEY` - API key (or use `LAYERCODE_API_KEY` env var)
 
 ---

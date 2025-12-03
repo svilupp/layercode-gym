@@ -153,11 +153,11 @@ judge-criteria: |
 
 #### `model`
 **Type**: String
-**Default**: `openai:gpt-4o-mini`
+**Default**: `openai:gpt-5-mini`
 **Description**: AI model for personas
 **Options**:
-- `openai:gpt-4o-mini` (fast, cost-effective)
-- `openai:gpt-4o` (more capable)
+- `openai:gpt-5-mini` (fast, cost-effective)
+- `openai:gpt-5` (more capable)
 - `anthropic:claude-sonnet-4-5` (highest quality)
 - `anthropic:claude-haiku-4` (fast)
 
@@ -250,7 +250,7 @@ jobs:
             - Did the agent provide clear next steps or solutions?
             - Did the agent avoid leaving the customer confused?
           fail-on-judge-failure: true
-          model: openai:gpt-4o-mini
+          model: openai:gpt-5-mini
           server-url: ${{ secrets.SERVER_URL }}
           layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -374,9 +374,9 @@ judge-criteria: |
 
 ### 6. Use Different Models for Different Needs
 
-- `openai:gpt-4o-mini`: Fast, cost-effective, good for most tests
+- `openai:gpt-5-mini`: Fast, cost-effective, good for most tests
 - `anthropic:claude-sonnet-4-5`: Complex conversations, high accuracy
-- `openai:gpt-4o`: Balance of speed and capability
+- `openai:gpt-5`: Balance of speed and capability
 
 ## Troubleshooting
 
@@ -418,6 +418,47 @@ concurrency:
 ```
 
 ## Advanced Usage
+
+### Update Webhook URL for PR Testing
+
+Before running tests, you may need to point your LayerCode agent to a PR-specific backend URL. Use the `api-agents` CLI:
+
+```yaml
+steps:
+  - name: Update webhook to PR backend
+    run: |
+      # Save original webhook
+      ORIGINAL=$(uvx layercode-gym api-agents get \
+        --agent-id ${{ secrets.LAYERCODE_AGENT_ID }} \
+        --json | jq -r .webhook_url)
+      echo "original=$ORIGINAL" >> $GITHUB_OUTPUT
+    env:
+      LAYERCODE_API_KEY: ${{ secrets.LAYERCODE_API_KEY }}
+
+  - name: Point agent to PR backend
+    run: |
+      uvx layercode-gym api-agents update \
+        --agent-id ${{ secrets.LAYERCODE_AGENT_ID }} \
+        --webhook-url https://pr-${{ github.event.pull_request.number }}.example.com/webhook
+    env:
+      LAYERCODE_API_KEY: ${{ secrets.LAYERCODE_API_KEY }}
+
+  - name: Run tests
+    uses: ./.github/actions/layercode-gym-test
+    with:
+      # ... your config
+
+  - name: Restore original webhook
+    if: always()
+    run: |
+      uvx layercode-gym api-agents update \
+        --agent-id ${{ secrets.LAYERCODE_AGENT_ID }} \
+        --webhook-url ${{ steps.save-webhook.outputs.original }}
+    env:
+      LAYERCODE_API_KEY: ${{ secrets.LAYERCODE_API_KEY }}
+```
+
+See the [`api-agents` CLI documentation](../../../docs/api-agents.md) for more details.
 
 ### Conditional Judging
 

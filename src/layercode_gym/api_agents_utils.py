@@ -37,15 +37,20 @@ class Agent:
     raw_data: dict[str, Any]
 
     def to_json(self) -> str:
-        """Convert to JSON string for CLI output."""
-        return json.dumps(
-            {
-                "agent_id": self.agent_id,
-                "name": self.name,
-                "webhook_url": self.webhook_url,
-            },
-            indent=2,
-        )
+        """Convert to JSON string for CLI output.
+
+        Returns full config from API for scripting use cases.
+        """
+        return json.dumps(self.raw_data, indent=2)
+
+
+def _extract_webhook_url(data: dict[str, Any]) -> str | None:
+    """Extract webhook URL from API response.
+
+    The webhook URL is stored at config.endpoint in the LayerCode API.
+    """
+    config = data.get("config", {})
+    return config.get("endpoint") if isinstance(config, dict) else None
 
 
 def get_agent(agent_id: str, api_key: str) -> Agent:
@@ -72,7 +77,7 @@ def get_agent(agent_id: str, api_key: str) -> Agent:
         return Agent(
             agent_id=agent_id,
             name=data.get("name"),
-            webhook_url=data.get("webhook_url"),
+            webhook_url=_extract_webhook_url(data),
             raw_data=data,
         )
 
@@ -97,6 +102,7 @@ def update_agent(agent_id: str, api_key: str, update_data: dict[str, Any]) -> Ag
         "Content-Type": "application/json",
     }
 
+    # API accepts webhook_url at top level for updates
     with httpx.Client(timeout=30.0) as client:
         response = client.post(url, headers=headers, json=update_data)
         response.raise_for_status()
@@ -105,7 +111,7 @@ def update_agent(agent_id: str, api_key: str, update_data: dict[str, Any]) -> Ag
         return Agent(
             agent_id=agent_id,
             name=data.get("name"),
-            webhook_url=data.get("webhook_url"),
+            webhook_url=_extract_webhook_url(data),
             raw_data=data,
         )
 
@@ -137,7 +143,7 @@ def list_agents(api_key: str) -> list[Agent]:
             Agent(
                 agent_id=agent.get("agent_id", agent.get("id", "")),
                 name=agent.get("name"),
-                webhook_url=agent.get("webhook_url"),
+                webhook_url=_extract_webhook_url(agent),
                 raw_data=agent,
             )
             for agent in agents_data
@@ -157,6 +163,9 @@ def print_agent(agent: Agent, json_output: bool = False) -> None:
         print(f"Agent ID: {agent.agent_id}")
         print(f"Name: {agent.name or '(not set)'}")
         print(f"Webhook URL: {agent.webhook_url or '(not set)'}")
+        print(
+            "\nTip: Use --json for full pipeline config (voice, transcription, speech, etc.)"
+        )
 
 
 def print_agents(agents: list[Agent], json_output: bool = False) -> None:
@@ -171,7 +180,6 @@ def print_agents(agents: list[Agent], json_output: bool = False) -> None:
             {
                 "agent_id": a.agent_id,
                 "name": a.name,
-                "webhook_url": a.webhook_url,
             }
             for a in agents
         ]
@@ -184,8 +192,7 @@ def print_agents(agents: list[Agent], json_output: bool = False) -> None:
         print(f"Found {len(agents)} agent(s):\n")
         for i, agent in enumerate(agents, 1):
             print(f"{i}. {agent.name or 'Unnamed Agent'} ({agent.agent_id})")
-            print(f"   Webhook: {agent.webhook_url or '(not set)'}")
-            print()
+        print("\nTip: Use 'api-agents get --agent-id <id>' to see webhook URL")
 
 
 def main_get(agent_id: str, api_key: str, json_output: bool = False) -> int:

@@ -116,7 +116,7 @@ class LayerCodeGymRunner:
         self.fail_on_judge_failure = (
             os.environ.get("FAIL_ON_JUDGE_FAILURE", "true").lower() == "true"
         )
-        self.model = os.environ.get("MODEL", "openai:gpt-4o-mini")
+        self.model = os.environ.get("MODEL", "openai:gpt-5-mini")
         self.store_audio = (
             os.environ.get("LAYERCODE_STORE_AUDIO", "false").lower() == "true"
         )
@@ -350,9 +350,7 @@ Expected format (YAML):
         persona_count = sum(
             1 for c in self.conversations if isinstance(c, PersonaConfig)
         )
-        script_count = sum(
-            1 for c in self.conversations if isinstance(c, ScriptConfig)
-        )
+        script_count = sum(1 for c in self.conversations if isinstance(c, ScriptConfig))
 
         print(f"\nRunning {len(self.conversations)} conversations in parallel...")
         print(f"   ({persona_count} AI personas, {script_count} scripted)")
@@ -419,8 +417,12 @@ Expected format (YAML):
             print("\nDetails:")
             for i, result in enumerate(results, 1):
                 status = "PASS" if result.passed else "FAIL"
-                type_label = "[script]" if result.config_type == "script" else "[persona]"
-                print(f"   {i}. {type_label} Config {result.config_index + 1}: {status}")
+                type_label = (
+                    "[script]" if result.config_type == "script" else "[persona]"
+                )
+                print(
+                    f"   {i}. {type_label} Config {result.config_index + 1}: {status}"
+                )
                 print(f"      Conversation: {result.conversation_id}")
                 if result.judge_feedback:
                     feedback_preview = (
@@ -433,7 +435,9 @@ Expected format (YAML):
         else:
             print("Judge not enabled - no pass/fail evaluation")
             for i, result in enumerate(results, 1):
-                type_label = "[script]" if result.config_type == "script" else "[persona]"
+                type_label = (
+                    "[script]" if result.config_type == "script" else "[persona]"
+                )
                 print(f"   {i}. {type_label} Conversation: {result.conversation_id}")
 
         print("\nResults Location: ./conversations/")
@@ -489,9 +493,7 @@ Expected format (YAML):
         persona_count = sum(
             1 for c in self.conversations if isinstance(c, PersonaConfig)
         )
-        script_count = sum(
-            1 for c in self.conversations if isinstance(c, ScriptConfig)
-        )
+        script_count = sum(1 for c in self.conversations if isinstance(c, ScriptConfig))
         print(f"  • Conversations: {len(self.conversations)}")
         print(f"    - AI Personas: {persona_count}")
         print(f"    - Scripted: {script_count}")
