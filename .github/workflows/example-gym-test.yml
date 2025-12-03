@@ -26,8 +26,9 @@ jobs:
 
     # CRITICAL: Prevent concurrent runs for the same agent
     # LayerCode agents support one webhook at a time
+    # NOTE: Using vars (not secrets) because secrets aren't available in concurrency context
     concurrency:
-      group: layercode-gym-${{ secrets.LAYERCODE_AGENT_ID }}
+      group: layercode-gym-${{ vars.LAYERCODE_AGENT_ID }}
       cancel-in-progress: false
 
     steps:
