@@ -1,10 +1,14 @@
 name: Example - LayerCode Gym Test
 
 # This workflow demonstrates how to use the LayerCode Gym Test action
-# It's set to manual trigger only - copy this to use in your own workflows
+# Runs on push/PR to main, or manually via workflow_dispatch
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
     inputs:
       judge-enabled:
         description: 'Enable automated judging'
@@ -48,11 +52,11 @@ jobs:
                 - Thanks, that's helpful
 
           # Conversation settings
-          max-turns: ${{ inputs.max-turns }}
+          max-turns: ${{ inputs.max-turns || 3 }}
           model: openai:gpt-5-nano
 
           # Judge configuration
-          judge-enabled: ${{ inputs.judge-enabled }}
+          judge-enabled: ${{ inputs.judge-enabled == '' && true || inputs.judge-enabled }}
           judge-criteria: |
             - Did the agent provide clear and accurate information?
             - Was the agent empathetic and professional in tone?

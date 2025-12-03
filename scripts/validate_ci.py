@@ -686,10 +686,10 @@ def test_api_agents_module() -> None:
     else:
         runner.failed("Missing api-agents routing in main CLI")
 
-    if "api_agents_cli" in content:
-        runner.passed("Imports api_agents_cli module")
+    if "api_agents_utils" in content or "api_agents_cli" in content:
+        runner.passed("Imports api_agents module")
     else:
-        runner.failed("Missing api_agents_cli import")
+        runner.failed("Missing api_agents import")
 
     runner.test("API Structure")
 

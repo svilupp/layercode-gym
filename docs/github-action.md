@@ -186,7 +186,7 @@ To enable audio storage (requires ffmpeg on the runner):
 
 ### Full Configuration Options
 
-See the [Action README](.github/actions/layercode-gym-test/README.md) for complete documentation of all inputs and outputs.
+See the [Action README](https://github.com/svilupp/layercode-gym/blob/main/.github/actions/layercode-gym-test/README.md) for complete documentation of all inputs and outputs.
 
 ## Use Cases
 
@@ -577,8 +577,8 @@ steps:
 
 ## Next Steps
 
-- [See complete action documentation](.github/actions/layercode-gym-test/README.md)
-- [View example workflows](.github/workflows/example-gym-test.yml)
+- [See complete action documentation](https://github.com/svilupp/layercode-gym/blob/main/.github/actions/layercode-gym-test/README.md)
+- [View example workflows](https://github.com/svilupp/layercode-gym/blob/main/.github/workflows/example-gym-test.yml)
 - [`api-agents` CLI](api-agents.md) - Swap webhook URLs to test PR backends in CI
 - [Read API reference](api-reference.md)
 - [Explore advanced features](advanced.md)

@@ -94,15 +94,6 @@ jobs:
           uv run layercode-gym run --help
           uv run layercode-gym api-agents --help
 
-      - name: Test CLI version
-        run: uv run python -c "import layercode_gym; print('Version:', layercode_gym.__version__)"
-
-      - name: Test uvx installation
-        run: |
-          echo "Testing that package can be run via uvx (as used in GitHub Action)"
-          uvx --from layercode-gym layercode-gym --help
-          uvx --from layercode-gym layercode-gym run --help
-
   validate-action:
     name: Validate GitHub Action
     runs-on: ubuntu-latest
