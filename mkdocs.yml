@@ -73,6 +73,8 @@ nav:
   - Examples: examples.md
   - API Reference: api-reference.md
   - Advanced Usage: advanced.md
+  - GitHub Actions: github-action.md
+  - API Agents CLI: api-agents.md
   - Roadmap: roadmap.md
 
 extra:

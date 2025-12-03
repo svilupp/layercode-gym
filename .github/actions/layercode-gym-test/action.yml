@@ -1,0 +1,172 @@
+name: 'LayerCode Gym Test'
+description: 'Run conversational AI tests with multiple personas and automated judging'
+author: 'LayerCode'
+
+branding:
+  icon: 'message-circle'
+  color: 'blue'
+
+inputs:
+  personas:
+    description: |
+      YAML list of conversation configurations. Supports two formats:
+
+      1. AI Persona (dynamic, AI-driven responses):
+         - background: Description of who the user is
+           intent: What they want to achieve
+
+      2. Scripted Messages (deterministic, fixed responses):
+         - messages:
+             - First message from user
+             - Second message from user
+
+      You can mix both types. Example:
+        personas: |
+          - background: Frustrated customer
+            intent: Get refund for broken product
+          - messages:
+              - Hello, what are your hours?
+              - Thanks, goodbye
+    required: true
+
+  max-turns:
+    description: 'Maximum number of conversation turns per persona'
+    required: false
+    default: '5'
+
+  judge-enabled:
+    description: 'Enable automated judging of conversations'
+    required: false
+    default: 'false'
+
+  judge-criteria:
+    description: |
+      List of evaluation criteria (one per line, prefixed with "- ").
+      Each criterion should be a yes/no question the judge can answer.
+      Example:
+        judge-criteria: |
+          - Did the agent greet the user appropriately?
+          - Did the agent provide accurate information?
+    required: false
+    default: ''
+
+  fail-on-judge-failure:
+    description: 'Fail the CI pipeline if judge evaluation fails'
+    required: false
+    default: 'true'
+
+  server-url:
+    description: 'Your backend server URL (e.g., https://your-server.com)'
+    required: true
+
+  layercode-agent-id:
+    description: 'LayerCode agent ID from your dashboard'
+    required: true
+
+  openai-api-key:
+    description: 'OpenAI API key for AI personas and TTS'
+    required: true
+
+  logfire-token:
+    description: 'LogFire token for observability (optional but recommended)'
+    required: false
+    default: ''
+
+  model:
+    description: 'AI model for personas (e.g., openai:gpt-5-mini, anthropic:claude-sonnet-4-5)'
+    required: false
+    default: 'openai:gpt-5-mini'
+
+  upload-artifacts:
+    description: 'Upload conversation transcripts and recordings as artifacts'
+    required: false
+    default: 'true'
+
+  store-audio:
+    description: 'Store audio files (requires ffmpeg). Disabled by default for faster CI.'
+    required: false
+    default: 'false'
+
+outputs:
+  conversations-run:
+    description: 'Number of conversations executed'
+    value: ${{ steps.run-gym.outputs.conversations-run }}
+
+  conversations-passed:
+    description: 'Number of conversations that passed (if judge enabled)'
+    value: ${{ steps.run-gym.outputs.conversations-passed }}
+
+  conversations-failed:
+    description: 'Number of conversations that failed (if judge enabled)'
+    value: ${{ steps.run-gym.outputs.conversations-failed }}
+
+  results-path:
+    description: 'Path to the results directory'
+    value: ${{ steps.run-gym.outputs.results-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check concurrency
+      shell: bash
+      run: |
+        echo "::notice::Starting LayerCode Gym test for agent ${{ inputs.layercode-agent-id }}"
+        echo "::notice::Note: LayerCode agents support one webhook at a time. Ensure no parallel runs for the same agent."
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      shell: bash
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Verify uv installation
+      shell: bash
+      run: |
+        uv --version
+
+    - name: Run LayerCode Gym tests
+      id: run-gym
+      shell: bash
+      env:
+        SERVER_URL: ${{ inputs.server-url }}
+        LAYERCODE_AGENT_ID: ${{ inputs.layercode-agent-id }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        LOGFIRE_TOKEN: ${{ inputs.logfire-token }}
+        PERSONAS: ${{ inputs.personas }}
+        MAX_TURNS: ${{ inputs.max-turns }}
+        JUDGE_ENABLED: ${{ inputs.judge-enabled }}
+        JUDGE_CRITERIA: ${{ inputs.judge-criteria }}
+        FAIL_ON_JUDGE_FAILURE: ${{ inputs.fail-on-judge-failure }}
+        MODEL: ${{ inputs.model }}
+        LAYERCODE_STORE_AUDIO: ${{ inputs.store-audio }}
+      run: |
+        # Install layercode-gym and run the orchestration script
+        uv run --with layercode-gym ${{ github.action_path }}/runner.py
+
+    - name: Upload conversation artifacts
+      if: inputs.upload-artifacts == 'true' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: layercode-gym-results-${{ github.run_id }}
+        path: conversations/
+        retention-days: 30
+        if-no-files-found: warn
+
+    - name: Summary
+      if: always()
+      shell: bash
+      run: |
+        echo "## LayerCode Gym Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Conversations Run**: ${{ steps.run-gym.outputs.conversations-run }}" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ inputs.judge-enabled }}" == "true" ]; then
+          echo "- **Passed**: ${{ steps.run-gym.outputs.conversations-passed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed**: ${{ steps.run-gym.outputs.conversations-failed }}" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Detailed results are available in the uploaded artifacts." >> $GITHUB_STEP_SUMMARY

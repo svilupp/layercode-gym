@@ -4,11 +4,11 @@
 [![Docs](https://github.com/svilupp/layercode-gym/actions/workflows/docs.yml/badge.svg)](https://github.com/svilupp/layercode-gym/actions/workflows/docs.yml)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://svilupp.github.io/layercode-gym)
 
-**Does your voice AI agent even lift, bro?**
-
 > **Warning (v0.1.0):** This toolkit is an early release and may contain bugs or breaking changes. Please test thoroughly before using in production.
 
-This is an **unofficial** testing gym for voice AI agents built on [Layercode.com](https://layercode.com). Quickly spin up a testing environment to run through hundreds of scenarios and understand how your agent will perform in production.
+A testing toolkit for voice AI agents built on [Layercode.com](https://layercode.com). Quickly spin up a testing environment to run through hundreds of scenarios and understand how your agent will perform in production.
+
+**Note:** This is an unofficial, community-maintained project.
 
 Perfect for regression testing, load testing, and automated evaluation of your voice AI agents.
 
@@ -18,8 +18,9 @@ Perfect for regression testing, load testing, and automated evaluation of your v
 - **Captured Analytics**: Full transcripts with TTFAB, latency stats, and audio recordings
 - **LogFire Integration**: Real-time observability and debugging
 - **Batch Testing**: Run hundreds of conversations concurrently
-- **CLI & Python API**: Quick testing via CLI or programmatic control
+- **CLI & Python API**: Quick testing via CLI or programmatic control, plus `api-agents` CLI to swap webhook URLs for CI
 - **LLM-as-Judge**: Bring your own quality evaluation with customizable criteria as a conversational hook
+- **GitHub Actions Integration**: Automated CI/CD testing with parallel persona execution
 
 See `examples/` for reference!
 
@@ -42,21 +43,34 @@ export SERVER_URL="http://localhost:8001"
 export LAYERCODE_AGENT_ID="your_agent_id"
 
 # Run instantly with uvx (no installation)
-uvx layercode-gym --text "Hello, I need help with my account"
+uvx layercode-gym run --text "Hello, I need help with my account"
 
 # Multiple messages
-uvx layercode-gym --text "Hi" --text "Tell me more" --text "Goodbye"
+uvx layercode-gym run --text "Hi" --text "Tell me more" --text "Goodbye"
 
 # Audio file
-uvx layercode-gym --file recording.wav
+uvx layercode-gym run --file recording.wav
 
 # AI agent with persona
-uvx layercode-gym --agent \
+uvx layercode-gym run --agent \
   --persona-background "You are a frustrated customer" \
   --persona-intent "Cancel your subscription"
 ```
 
-Run `uvx layercode-gym --help` for all options.
+Run `uvx layercode-gym --help` to see available commands, or `uvx layercode-gym run --help` for all run options.
+
+### Manage Agent Webhooks (for CI)
+
+```bash
+# List all agents
+uvx layercode-gym api-agents list
+
+# Get agent details (use --json for full pipeline config)
+uvx layercode-gym api-agents get --agent-id ag-123
+
+# Update webhook URL (useful for PR testing)
+uvx layercode-gym api-agents update --agent-id ag-123 --webhook-url https://pr-backend.com/webhook
+```
 
 ### Python API
 
@@ -212,6 +226,44 @@ results = await tqdm_asyncio.gather(*tasks, desc="Running conversations")
 ```
 
 See `examples/05_batch_evaluation.py` for the complete pattern.
+
+## GitHub Actions CI/CD
+
+Run automated tests in your CI pipeline with multiple personas in parallel:
+
+```yaml
+- uses: ./.github/actions/layercode-gym-test
+  with:
+    personas: |
+      - background: You are a potential customer
+        intent: Learn about pricing and features
+
+      - background: You are a frustrated user
+        intent: Get help with a problem
+    judge-enabled: true
+    judge-criteria: |
+      - Did the agent provide clear and helpful responses?
+    server-url: ${{ secrets.SERVER_URL }}
+    layercode-agent-id: ${{ secrets.LAYERCODE_AGENT_ID }}
+    openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+**Features:**
+- Run multiple personas in parallel for maximum speed
+- Automated quality evaluation with LLM judge
+- Detailed artifacts with transcripts and audio recordings
+- Optional LogFire observability integration
+
+**Tip:** Use the `api-agents` CLI to update your agent's webhook URL for PR testing:
+```bash
+# Point agent to PR-specific backend before running tests
+layercode-gym api-agents update --agent-id ag-123 --webhook-url https://pr-456.example.com/webhook
+
+# Restore original after tests
+layercode-gym api-agents update --agent-id ag-123 --webhook-url https://production.example.com/webhook
+```
+
+See [GitHub Actions documentation](docs/github-action.md) for complete setup guide, or [`api-agents` CLI docs](docs/api-agents.md) for webhook management.
 
 ## Conversation Outputs
 

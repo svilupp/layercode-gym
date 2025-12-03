@@ -16,20 +16,28 @@ from .models.conversation import ConversationLog
 @dataclass(frozen=True, slots=True)
 class StoragePaths:
     root: Path
-    audio_dir: Path
+    audio_dir: Path | None  # None when store_audio=False
     data_dir: Path
     text_dir: Path
 
 
 class ConversationStorage:
-    def __init__(self, base_dir: Path, conversation_id: str) -> None:
+    def __init__(
+        self, base_dir: Path, conversation_id: str, *, store_audio: bool = True
+    ) -> None:
         # Folder named by conversation_id only (no timestamp suffix)
         root = base_dir / conversation_id
-        audio_dir = root / "audio"
+        audio_dir = root / "audio" if store_audio else None
         data_dir = root / "data"
         text_dir = root / "text"
-        for directory in (audio_dir, data_dir, text_dir):
+
+        # Only create directories that will be used
+        dirs_to_create = [root, data_dir, text_dir]
+        if audio_dir is not None:
+            dirs_to_create.append(audio_dir)
+        for directory in dirs_to_create:
             directory.mkdir(parents=True, exist_ok=True)
+
         self.paths = StoragePaths(
             root=root, audio_dir=audio_dir, data_dir=data_dir, text_dir=text_dir
         )
@@ -42,7 +50,10 @@ class ConversationStorage:
         turn_index: int,
         timestamp: datetime,
         suffix: str = "wav",
-    ) -> Path:
+    ) -> Path | None:
+        # Skip if audio storage is disabled
+        if self.paths.audio_dir is None:
+            return None
         # Files include timestamp for chronological ordering
         ts_str = timestamp.strftime("%Y%m%d_%H%M%S_%f")[:-3]  # milliseconds
         filename = f"{role}_{ts_str}_turn{turn_index}.{suffix}"
@@ -73,7 +84,10 @@ class ConversationStorage:
 
     def export_combined_audio(
         self, segments: Iterable[AudioSegment], filename: str = "conversation_mix.wav"
-    ) -> Path:
+    ) -> Path | None:
+        # Skip if audio storage is disabled
+        if self.paths.audio_dir is None:
+            return None
         combined = None
         for segment in segments:
             combined = (

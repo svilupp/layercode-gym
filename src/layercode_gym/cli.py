@@ -1,44 +1,14 @@
 #!/usr/bin/env python3
 """
-LayerCode Gym CLI - Simple client for testing LayerCode voice agents.
+LayerCode Gym CLI - Testing toolkit for voice AI agents.
 
-This CLI provides a quick way to test your LayerCode server without writing code.
-It exposes three modes of interaction:
-1. Text messages (--text)
-2. Audio files (--file)
-3. AI agent personas (--agent)
+This CLI provides commands for testing and managing LayerCode voice agents.
 
-All modes can be combined - text and file inputs are composable.
+Commands:
+    run          Run a conversation with a LayerCode voice agent
+    api-agents   Manage LayerCode agents via REST API
 
-Examples:
-    # Simple text message
-    layercode-gym --text "Hello, I need help with my account"
-
-    # Multiple messages
-    layercode-gym --text "Hi" --text "Can you help me?"
-
-    # Audio file playback
-    layercode-gym --file recording.wav
-
-    # Mix text and audio
-    layercode-gym --text "Hello" --file question.wav
-
-    # AI agent with custom persona
-    layercode-gym --agent --persona-background "You are a frustrated customer" \\
-                  --persona-intent "Cancel subscription"
-
-    # Custom server configuration
-    layercode-gym --server-url http://localhost:3000 \\
-                  --authorize-path /auth/layercode \\
-                  --text "Hello"
-
-Environment Variables:
-    SERVER_URL              - Your backend server URL
-    LAYERCODE_AGENT_ID      - Your LayerCode agent ID
-    OPENAI_API_KEY          - For TTS and AI personas
-    LAYERCODE_OUTPUT_ROOT   - Where to save conversations
-
-    See Settings class for full list of environment variables.
+Run 'layercode-gym <command> --help' for more information on a command.
 """
 
 import argparse
@@ -56,29 +26,49 @@ from layercode_gym import (
 )
 
 
-def create_parser() -> argparse.ArgumentParser:
-    """Create the argument parser with all CLI options."""
+# Custom formatter that preserves newlines in description/epilog
+class RawDescriptionWithDefaultsFormatter(
+    argparse.RawDescriptionHelpFormatter,
+    argparse.ArgumentDefaultsHelpFormatter,
+):
+    pass
 
-    parser = argparse.ArgumentParser(
-        prog="layercode-gym",
+
+def create_run_parser(
+    subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]",
+) -> argparse.ArgumentParser:
+    """Create the 'run' subcommand parser with all conversation options."""
+
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Run a conversation with a LayerCode voice agent",
         description=(
-            "Simple CLI client for testing LayerCode voice agents. "
-            "Supports text messages, audio files, and AI agent personas."
+            "Run a simulated conversation with a LayerCode voice agent.\n"
+            "Supports text messages, audio files, and AI agent personas.\n"
+            "All input modes can be combined."
         ),
         epilog=(
             "Examples:\n"
-            "  layercode-gym --text 'Hello, I need help'\n"
-            "  layercode-gym --file recording.wav\n"
-            "  layercode-gym --agent --persona-intent 'Book a flight'\n"
-            "  layercode-gym --text 'Hi' --file question.wav --max-turns 5\n"
+            "  # Simple text message\n"
+            "  layercode-gym run --text 'Hello, I need help'\n"
             "\n"
-            "For more information, see: https://github.com/layercode/layercode-gym"
+            "  # Multiple text messages (sent one per turn)\n"
+            "  layercode-gym run --text 'Hi' --text 'Can you help me?'\n"
+            "\n"
+            "  # Audio file playback\n"
+            "  layercode-gym run --file recording.wav\n"
+            "\n"
+            "  # AI agent with custom persona\n"
+            "  layercode-gym run --agent --persona-intent 'Book a flight to NYC'\n"
+            "\n"
+            "  # Custom server configuration\n"
+            "  layercode-gym run --server-url http://localhost:3000 --text 'Hello'\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # Input modes (composable)
-    input_group = parser.add_argument_group(
+    input_group = run_parser.add_argument_group(
         "input modes",
         "Specify how the simulator should interact (can combine --text and --file)",
     )
@@ -113,7 +103,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # Agent persona options (only used with --agent)
-    persona_group = parser.add_argument_group(
+    persona_group = run_parser.add_argument_group(
         "agent persona options",
         "Configure the AI agent persona (only used with --agent)",
     )
@@ -135,7 +125,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # Server configuration
-    server_group = parser.add_argument_group(
+    server_group = run_parser.add_argument_group(
         "server configuration",
         "Configure connection to your LayerCode backend server",
     )
@@ -163,7 +153,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # Conversation control
-    control_group = parser.add_argument_group(
+    control_group = run_parser.add_argument_group(
         "conversation control",
         "Control conversation behavior and limits",
     )
@@ -184,7 +174,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # TTS configuration (for agent mode)
-    tts_group = parser.add_argument_group(
+    tts_group = run_parser.add_argument_group(
         "text-to-speech options",
         "Configure OpenAI TTS for agent mode (requires OPENAI_API_KEY)",
     )
@@ -206,7 +196,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # Audio processing
-    audio_group = parser.add_argument_group(
+    audio_group = run_parser.add_argument_group(
         "audio processing",
         "Configure audio chunking behavior",
     )
@@ -224,7 +214,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # Debug/observability
-    debug_group = parser.add_argument_group(
+    debug_group = run_parser.add_argument_group(
         "debugging and observability",
     )
     debug_group.add_argument(
@@ -234,11 +224,177 @@ def create_parser() -> argparse.ArgumentParser:
         help="Enable verbose output for debugging",
     )
 
+    return run_parser
+
+
+def create_api_agents_parser(
+    subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]",
+) -> argparse.ArgumentParser:
+    """Create the 'api-agents' subcommand parser."""
+
+    api_parser = subparsers.add_parser(
+        "api-agents",
+        help="Manage LayerCode agents via REST API",
+        description=(
+            "Manage LayerCode agents via the REST API.\n"
+            "Useful for CI/CD pipelines and automation."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  # List all agents\n"
+            "  layercode-gym api-agents list\n"
+            "\n"
+            "  # Get agent details\n"
+            "  layercode-gym api-agents get --agent-id ag-123456\n"
+            "\n"
+            "  # Update webhook URL\n"
+            "  layercode-gym api-agents update --agent-id ag-123 --webhook-url https://new.com\n"
+            "\n"
+            "  # CI pattern: save, update, test, restore\n"
+            "  ORIGINAL=$(layercode-gym api-agents get --agent-id ag-123 --json | jq -r .webhook_url)\n"
+            "  layercode-gym api-agents update --agent-id ag-123 --webhook-url https://test.com\n"
+            "  # ... run tests ...\n"
+            '  layercode-gym api-agents update --agent-id ag-123 --webhook-url "$ORIGINAL"\n'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    # Create subcommands for api-agents
+    api_subparsers = api_parser.add_subparsers(
+        dest="api_command",
+        metavar="<command>",
+        help="API command to execute",
+    )
+
+    # 'list' command
+    list_parser = api_subparsers.add_parser(
+        "list",
+        help="List all agents in your account",
+        description="List all agents in your LayerCode account",
+    )
+    list_parser.add_argument(
+        "--api-key",
+        metavar="KEY",
+        help="LayerCode API key (or set LAYERCODE_API_KEY env var)",
+    )
+    list_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON (useful for scripting)",
+    )
+
+    # 'get' command
+    get_parser = api_subparsers.add_parser(
+        "get",
+        help="Get agent details by ID",
+        description="Get detailed information about a specific LayerCode agent",
+    )
+    get_parser.add_argument(
+        "--agent-id",
+        required=True,
+        metavar="ID",
+        help="LayerCode agent ID (e.g., ag-123456)",
+    )
+    get_parser.add_argument(
+        "--api-key",
+        metavar="KEY",
+        help="LayerCode API key (or set LAYERCODE_API_KEY env var)",
+    )
+    get_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON (useful for scripting)",
+    )
+
+    # 'update' command
+    update_parser = api_subparsers.add_parser(
+        "update",
+        help="Update agent configuration",
+        description="Update agent configuration fields",
+    )
+    update_parser.add_argument(
+        "--agent-id",
+        required=True,
+        metavar="ID",
+        help="LayerCode agent ID (e.g., ag-123456)",
+    )
+    update_parser.add_argument(
+        "--api-key",
+        metavar="KEY",
+        help="LayerCode API key (or set LAYERCODE_API_KEY env var)",
+    )
+    update_parser.add_argument(
+        "--webhook-url",
+        metavar="URL",
+        help="Update webhook URL (e.g., https://example.com/webhook)",
+    )
+    update_parser.add_argument(
+        "--name",
+        metavar="NAME",
+        help="Update agent name",
+    )
+    update_parser.add_argument(
+        "--json-data",
+        metavar="JSON",
+        help='Update with JSON data (e.g., \'{"webhook_url":"..."}\')',
+    )
+    update_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON",
+    )
+
+    return api_parser
+
+
+def create_parser() -> argparse.ArgumentParser:
+    """Create the main argument parser with subcommands."""
+
+    parser = argparse.ArgumentParser(
+        prog="layercode-gym",
+        description=(
+            "LayerCode Gym - Testing toolkit for voice AI agents.\n"
+            "\n"
+            "Commands:\n"
+            "  run          Run a conversation with a LayerCode voice agent\n"
+            "  api-agents   Manage LayerCode agents via REST API"
+        ),
+        epilog=(
+            "Examples:\n"
+            "  # Run a conversation with text messages\n"
+            "  layercode-gym run --text 'Hello, I need help with my account'\n"
+            "\n"
+            "  # Run with AI agent persona\n"
+            "  layercode-gym run --agent --persona-intent 'Book a flight to NYC'\n"
+            "\n"
+            "  # List all agents in your account\n"
+            "  layercode-gym api-agents list\n"
+            "\n"
+            "  # Update agent webhook for CI testing\n"
+            "  layercode-gym api-agents update --agent-id ag-123 --webhook-url https://test.com\n"
+            "\n"
+            "Run 'layercode-gym <command> --help' for more information on a command.\n"
+            "\n"
+            "For more information, see: https://github.com/layercode/layercode-gym"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    subparsers = parser.add_subparsers(
+        dest="command",
+        metavar="<command>",
+        help="Command to run",
+    )
+
+    # Add subcommand parsers
+    create_run_parser(subparsers)
+    create_api_agents_parser(subparsers)
+
     return parser
 
 
-def validate_args(args: argparse.Namespace) -> None:
-    """Validate argument combinations and requirements."""
+def validate_run_args(args: argparse.Namespace) -> None:
+    """Validate argument combinations for the 'run' command."""
 
     # Check that at least one input mode is specified
     has_text = args.texts is not None and len(args.texts) > 0
@@ -252,7 +408,7 @@ def validate_args(args: argparse.Namespace) -> None:
             "  --file PATH       Play audio file(s)\n"
             "  --agent           Use AI agent persona\n"
             "\n"
-            "Run 'layercode-gym --help' for more information.",
+            "Run 'layercode-gym run --help' for more information.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -433,14 +589,101 @@ async def run_conversation(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def handle_api_agents(args: argparse.Namespace) -> int:
+    """Handle api-agents subcommand."""
+    import json
+    import os
+    from typing import Any, cast
+
+    from layercode_gym.api_agents_utils import main_get, main_list, main_update
+
+    # If no api subcommand, show help
+    if not args.api_command:
+        print(
+            "usage: layercode-gym api-agents <command> [options]\n"
+            "\n"
+            "Manage LayerCode agents via REST API.\n"
+            "\n"
+            "Commands:\n"
+            "  list      List all agents in your account\n"
+            "  get       Get agent details by ID\n"
+            "  update    Update agent configuration\n"
+            "\n"
+            "Run 'layercode-gym api-agents <command> --help' for more information.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Get API key
+    api_key = args.api_key or os.environ.get("LAYERCODE_API_KEY")
+    if not api_key:
+        print(
+            "Error: API key required. Provide via --api-key or LAYERCODE_API_KEY env var",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Route to appropriate handler
+    if args.api_command == "list":
+        return main_list(
+            api_key=api_key,
+            json_output=args.json,
+        )
+    elif args.api_command == "get":
+        return main_get(
+            agent_id=args.agent_id,
+            api_key=api_key,
+            json_output=args.json,
+        )
+    elif args.api_command == "update":
+        # Build update data
+        update_data: dict[str, Any]
+        if args.json_data:
+            if args.webhook_url or args.name:
+                print(
+                    "Error: Cannot use --json-data with --webhook-url or --name",
+                    file=sys.stderr,
+                )
+                return 1
+            try:
+                update_data = cast(dict[str, Any], json.loads(args.json_data))
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON data - {e}", file=sys.stderr)
+                return 1
+        else:
+            update_data = {}
+            if args.webhook_url:
+                update_data["webhook_url"] = args.webhook_url
+            if args.name:
+                update_data["name"] = args.name
+
+            if not update_data:
+                print(
+                    "Error: No update fields provided. Use --webhook-url, --name, or --json-data",
+                    file=sys.stderr,
+                )
+                return 1
+
+        return main_update(
+            agent_id=args.agent_id,
+            api_key=api_key,
+            update_data=update_data,
+            json_output=args.json,
+        )
+    else:
+        return 1
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     """Main entry point for the CLI."""
 
-    parser = create_parser()
-
-    # If no arguments provided, show help
+    # If no arguments provided, use sys.argv
     if argv is None:
         argv = sys.argv[1:]
+
+    parser = create_parser()
+
+    # If no arguments, show help
     if len(argv) == 0:
         parser.print_help()
         sys.exit(0)
@@ -448,11 +691,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     # Parse arguments
     args = parser.parse_args(argv)
 
-    # Validate
-    validate_args(args)
-
-    # Run async conversation
-    asyncio.run(run_conversation(args))
+    # Route to appropriate handler based on command
+    if args.command == "run":
+        validate_run_args(args)
+        asyncio.run(run_conversation(args))
+    elif args.command == "api-agents":
+        sys.exit(handle_api_agents(args))
+    else:
+        # No command specified, show help
+        parser.print_help()
+        sys.exit(0)
 
 
 if __name__ == "__main__":
