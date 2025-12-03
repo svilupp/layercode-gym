@@ -101,14 +101,10 @@ class LayerCodeGymRunner:
         # Required settings
         self.server_url = os.environ["SERVER_URL"]
         self.agent_id = os.environ["LAYERCODE_AGENT_ID"]
-        self.layercode_api_key = os.environ["LAYERCODE_API_KEY"]
         self.openai_api_key = os.environ["OPENAI_API_KEY"]
 
         # Optional settings
         self.logfire_token = os.environ.get("LOGFIRE_TOKEN", "")
-
-        # Track original webhook for restoration
-        self._original_webhook: str | None = None
 
         # Test configuration
         self.personas_json = os.environ["PERSONAS"]
@@ -344,61 +340,6 @@ Expected format (YAML):
 
         return result
 
-    def configure_webhook(self) -> None:
-        """Configure agent webhook URL before running tests.
-
-        Saves original webhook for restoration after tests complete.
-        """
-        from layercode_gym.api_agents_utils import get_agent, update_agent
-
-        webhook_url = f"{self.server_url}/api/webhook"
-
-        try:
-            # Get current agent config to save original webhook
-            agent = get_agent(self.agent_id, self.layercode_api_key)
-            self._original_webhook = agent.webhook_url
-
-            # Update webhook to point to our test server
-            update_agent(
-                self.agent_id,
-                self.layercode_api_key,
-                {"webhook_url": webhook_url},
-            )
-            print(f"  • Webhook configured: {webhook_url}")
-
-            if self._original_webhook and self._original_webhook != webhook_url:
-                print(f"    (original: {self._original_webhook})")
-
-        except Exception as e:
-            safe_error = sanitize_error(e)
-            print(f"\nError: Failed to configure webhook: {safe_error}", file=sys.stderr)
-            print(
-                "Hint: Ensure LAYERCODE_API_KEY is valid and has permissions for this agent",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-    def restore_webhook(self) -> None:
-        """Restore original webhook URL after tests complete."""
-        if self._original_webhook is None:
-            return
-
-        from layercode_gym.api_agents_utils import update_agent
-
-        try:
-            update_agent(
-                self.agent_id,
-                self.layercode_api_key,
-                {"webhook_url": self._original_webhook},
-            )
-            print(f"\n  • Webhook restored: {self._original_webhook}")
-        except Exception as e:
-            safe_error = sanitize_error(e)
-            print(
-                f"\nWarning: Failed to restore original webhook: {safe_error}",
-                file=sys.stderr,
-            )
-
     async def run_all_conversations(self) -> list[TestResult]:
         """Run all conversations in parallel.
 
@@ -570,24 +511,23 @@ Expected format (YAML):
         if self.logfire_token:
             print("  • LogFire: Enabled")
 
-        # Configure webhook before running tests
-        self.configure_webhook()
+        print(
+            "\nNote: Configure webhook before running tests using:\n"
+            f"   layercode-gym api-agents update --agent-id {self.agent_id} "
+            f"--webhook-url {self.server_url}/api/webhook\n"
+        )
 
-        try:
-            # Run conversations
-            results = await self.run_all_conversations()
+        # Run conversations
+        results = await self.run_all_conversations()
 
-            # Run judges if enabled
-            results = await self.run_all_judges(results)
+        # Run judges if enabled
+        results = await self.run_all_judges(results)
 
-            # Print summary and set outputs
-            self.print_summary(results)
+        # Print summary and set outputs
+        self.print_summary(results)
 
-            # Return exit code
-            return self.determine_exit_code(results)
-        finally:
-            # Always restore original webhook
-            self.restore_webhook()
+        # Return exit code
+        return self.determine_exit_code(results)
 
 
 async def main() -> None:

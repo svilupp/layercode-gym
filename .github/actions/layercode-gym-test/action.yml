@@ -63,10 +63,6 @@ inputs:
     description: 'LayerCode agent ID from your dashboard'
     required: true
 
-  layercode-api-key:
-    description: 'LayerCode API key for configuring agent webhook (from dashboard)'
-    required: true
-
   openai-api-key:
     description: 'OpenAI API key for AI personas and TTS'
     required: true
@@ -139,7 +135,6 @@ runs:
       env:
         SERVER_URL: ${{ inputs.server-url }}
         LAYERCODE_AGENT_ID: ${{ inputs.layercode-agent-id }}
-        LAYERCODE_API_KEY: ${{ inputs.layercode-api-key }}
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
         LOGFIRE_TOKEN: ${{ inputs.logfire-token }}
         PERSONAS: ${{ inputs.personas }}
