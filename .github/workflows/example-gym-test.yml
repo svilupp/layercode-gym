@@ -68,6 +68,7 @@ jobs:
           # Required configuration (set in GitHub repository settings)
           server-url: ${{ vars.SERVER_URL }}
           layercode-agent-id: ${{ vars.LAYERCODE_AGENT_ID }}
+          layercode-api-key: ${{ secrets.LAYERCODE_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
 
           # Optional: Enable observability
