@@ -9,10 +9,24 @@ branding:
 inputs:
   personas:
     description: |
-      JSON array of persona objects. Each persona should have:
-      - background: Description of who the user is
-      - intent: What they want to achieve
-      Example: '[{"background":"You are a 35yo business owner","intent":"Learn about voice AI"}]'
+      YAML list of conversation configurations. Supports two formats:
+
+      1. AI Persona (dynamic, AI-driven responses):
+         - background: Description of who the user is
+           intent: What they want to achieve
+
+      2. Scripted Messages (deterministic, fixed responses):
+         - messages:
+             - First message from user
+             - Second message from user
+
+      You can mix both types. Example:
+        personas: |
+          - background: Frustrated customer
+            intent: Get refund for broken product
+          - messages:
+              - Hello, what are your hours?
+              - Thanks, goodbye
     required: true
 
   max-turns:

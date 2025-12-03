@@ -34,22 +34,18 @@ jobs:
         id: gym-test
         uses: ./.github/actions/layercode-gym-test
         with:
-          # Define multiple personas to test in parallel
+          # Define conversations to test in parallel
+          # Supports both AI personas (dynamic) and scripted messages (deterministic)
           personas: |
-            [
-              {
-                "background": "You are a 35-year-old small business owner interested in AI technology",
-                "intent": "Learn about voice AI capabilities and how they can help your business"
-              },
-              {
-                "background": "You are a technical developer evaluating voice APIs for a project",
-                "intent": "Understand the technical integration requirements and API capabilities"
-              },
-              {
-                "background": "You are a frustrated customer who had a bad experience",
-                "intent": "Express your concerns and seek resolution"
-              }
-            ]
+            # AI-driven persona for dynamic testing
+            - background: You are a 35-year-old small business owner interested in fashion
+              intent: Learn about the capabilities of this platform and how it can help your business
+
+            # Scripted conversation for regression testing
+            - messages:
+                - Hello, I have a question about the platform
+                - What's included in the basic plan?
+                - Thanks, that's helpful
 
           # Conversation settings
           max-turns: ${{ inputs.max-turns }}

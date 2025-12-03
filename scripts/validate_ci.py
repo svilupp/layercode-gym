@@ -398,7 +398,7 @@ def test_runner_script() -> None:
     runner.test("Required Classes")
 
     classes = get_classes(tree)
-    required_classes = ["PersonaConfig", "TestResult", "LayerCodeGymRunner"]
+    required_classes = ["PersonaConfig", "ScriptConfig", "TestResult", "LayerCodeGymRunner"]
 
     for cls in required_classes:
         if cls in classes:
@@ -525,6 +525,76 @@ def test_runner_script() -> None:
         runner.passed("Handles judge criteria")
     else:
         runner.failed("Missing judge criteria handling")
+
+
+def test_script_support() -> None:
+    """Validate scripted conversation support."""
+    runner.suite("Scripted Conversation Support")
+
+    runner_path = Path(".github/actions/layercode-gym-test/runner.py")
+
+    if not runner_path.exists():
+        runner.failed("runner.py not found")
+        return
+
+    with open(runner_path) as f:
+        content = f.read()
+
+    runner.test("ScriptConfig Support")
+
+    # Check for ScriptConfig class
+    if "class ScriptConfig" in content:
+        runner.passed("Defines ScriptConfig dataclass")
+    else:
+        runner.failed("Missing ScriptConfig dataclass")
+
+    # Check for messages handling
+    if '"messages"' in content or "'messages'" in content:
+        runner.passed("Handles 'messages' key in config")
+    else:
+        runner.failed("Missing 'messages' key handling")
+
+    # Check for from_text usage
+    if "from_text" in content:
+        runner.passed("Uses UserSimulator.from_text()")
+    else:
+        runner.failed("Missing from_text() usage")
+
+    # Check for isinstance check
+    if "isinstance(config, ScriptConfig)" in content:
+        runner.passed("Uses isinstance for config type detection")
+    else:
+        runner.failed("Missing isinstance check for ScriptConfig")
+
+    runner.test("YAML Parsing Support")
+
+    # Check for yaml import
+    if "import yaml" in content:
+        runner.passed("Imports yaml module")
+    else:
+        runner.failed("Missing yaml import")
+
+    # Check for yaml.safe_load usage
+    if "yaml.safe_load" in content:
+        runner.passed("Uses yaml.safe_load for parsing")
+    else:
+        runner.failed("Missing yaml.safe_load usage")
+
+    runner.test("Action Documents Script Format")
+
+    action_path = Path(".github/actions/layercode-gym-test/action.yml")
+    with open(action_path) as f:
+        action_content = f.read()
+
+    if "messages" in action_content:
+        runner.passed("action.yml documents 'messages' format")
+    else:
+        runner.failed("action.yml missing 'messages' documentation")
+
+    if "Scripted" in action_content or "scripted" in action_content:
+        runner.passed("action.yml mentions scripted conversations")
+    else:
+        runner.failed("action.yml missing scripted conversation docs")
 
 
 def test_api_agents_module() -> None:
@@ -974,66 +1044,128 @@ def test_consistency() -> None:
                 runner.warn(f"README may be missing input: {input_name}")
 
 
-def test_json_parsing() -> None:
-    """Test persona JSON parsing logic."""
-    runner.suite("JSON Parsing Validation")
+def test_yaml_parsing() -> None:
+    """Test persona and script YAML/JSON parsing logic."""
+    import yaml
 
-    runner.test("Valid Persona Structures")
+    runner.suite("YAML/JSON Parsing Validation")
 
-    valid_personas = [
-        [{"background": "Customer", "intent": "Buy product"}],
-        [
-            {"background": "User 1", "intent": "Intent 1"},
-            {"background": "User 2", "intent": "Intent 2"},
-        ],
-        [
-            {
-                "background": "Complex user with many details",
-                "intent": "Multiple goals: learn, buy, and support",
-            }
-        ],
+    runner.test("Valid Persona Structures (YAML)")
+
+    valid_yaml_personas = [
+        "- background: Customer\n  intent: Buy product",
+        "- background: User 1\n  intent: Intent 1\n- background: User 2\n  intent: Intent 2",
     ]
 
-    for i, personas in enumerate(valid_personas, 1):
+    for i, yaml_str in enumerate(valid_yaml_personas, 1):
         try:
-            json_str = json.dumps(personas)
-            parsed = json.loads(json_str)
+            parsed = yaml.safe_load(yaml_str)
             valid = all("background" in p and "intent" in p for p in parsed)
             if valid:
-                runner.passed(f"Valid structure {i}: {len(personas)} persona(s)")
+                runner.passed(f"Valid YAML persona {i}")
             else:
-                runner.failed(f"Structure {i} missing required fields")
+                runner.failed(f"YAML persona {i} missing fields")
         except Exception as e:
-            runner.failed(f"Structure {i} failed: {e}")
+            runner.failed(f"YAML persona {i} failed: {e}")
 
-    runner.test("Invalid Persona Detection")
+    runner.test("Valid Script Structures (YAML)")
 
-    invalid_cases = [
-        ("not json at all", "Non-JSON string"),
-        ("[]", "Empty array"),
-        ('[{"background": "test"}]', "Missing intent"),
-        ('[{"intent": "test"}]', "Missing background"),
-        ('{"background": "test", "intent": "test"}', "Not an array"),
-        ("[{background: test}]", "Invalid JSON syntax"),
+    valid_yaml_scripts = [
+        "- messages:\n    - Hello!\n    - Thanks",
+        "- messages:\n    - Single message",
+        "- messages:\n    - Hi\n    - Yes\n- messages:\n    - Different\n    - Conversation",
     ]
 
-    for json_str, description in invalid_cases:
+    for i, yaml_str in enumerate(valid_yaml_scripts, 1):
         try:
-            parsed = json.loads(json_str)
+            parsed = yaml.safe_load(yaml_str)
+            valid = all(
+                "messages" in p
+                and isinstance(p["messages"], list)
+                and len(p["messages"]) > 0
+                for p in parsed
+            )
+            if valid:
+                runner.passed(f"Valid YAML script {i}")
+            else:
+                runner.failed(f"YAML script {i} invalid")
+        except Exception as e:
+            runner.failed(f"YAML script {i} failed: {e}")
+
+    runner.test("Mixed Persona and Script Structures (YAML)")
+
+    mixed_yaml = """
+- background: Customer
+  intent: Buy product
+- messages:
+    - Hello!
+    - I need help
+- background: Developer
+  intent: Integrate API
+"""
+
+    try:
+        parsed = yaml.safe_load(mixed_yaml)
+        valid = all(
+            ("messages" in p and isinstance(p["messages"], list))
+            or ("background" in p and "intent" in p)
+            for p in parsed
+        )
+        if valid:
+            runner.passed(f"Valid mixed YAML: {len(parsed)} config(s)")
+        else:
+            runner.failed("Mixed YAML structure invalid")
+    except Exception as e:
+        runner.failed(f"Mixed YAML failed: {e}")
+
+    runner.test("Legacy JSON Format Still Works")
+
+    legacy_json_configs = [
+        '[{"background":"Customer","intent":"Buy"}]',
+        '[{"messages":["Hello","Bye"]}]',
+        '[{"background":"A","intent":"B"},{"messages":["Hi"]}]',
+    ]
+
+    for i, json_str in enumerate(legacy_json_configs, 1):
+        try:
+            # YAML parser handles JSON
+            parsed = yaml.safe_load(json_str)
             if isinstance(parsed, list) and len(parsed) > 0:
-                # Check for required fields
-                valid = all(
-                    isinstance(p, dict) and "background" in p and "intent" in p
-                    for p in parsed
+                runner.passed(f"JSON format {i} parsed correctly")
+            else:
+                runner.failed(f"JSON format {i} failed")
+        except Exception as e:
+            runner.failed(f"JSON format {i} error: {e}")
+
+    runner.test("Invalid Config Detection")
+
+    invalid_configs = [
+        ("- messages: []", "Empty messages list"),
+        ("- messages: not a list", "Messages not a list"),
+        ("- message:\n    - typo", "Wrong key name"),
+        ("- background: only one field", "Missing intent"),
+        ("not a list", "Not a list"),
+    ]
+
+    for yaml_str, description in invalid_configs:
+        try:
+            parsed = yaml.safe_load(yaml_str)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                item = parsed[0]
+                is_valid_script = (
+                    "messages" in item
+                    and isinstance(item.get("messages"), list)
+                    and len(item.get("messages", [])) > 0
                 )
-                if valid:
+                is_valid_persona = "background" in item and "intent" in item
+                if is_valid_script or is_valid_persona:
                     runner.failed(f"Should reject: {description}")
                 else:
                     runner.passed(f"Would catch: {description}")
             else:
                 runner.passed(f"Would catch: {description}")
-        except json.JSONDecodeError:
-            runner.passed(f"Rejects invalid JSON: {description}")
+        except yaml.YAMLError:
+            runner.passed(f"Rejects invalid YAML: {description}")
 
 
 def test_github_outputs() -> None:
@@ -1099,12 +1231,13 @@ def main() -> int:
     # Run all test suites
     test_action_yaml_structure()
     test_runner_script()
+    test_script_support()
     test_api_agents_module()
     test_workflow_files()
     test_documentation()
     test_security()
     test_consistency()
-    test_json_parsing()
+    test_yaml_parsing()
     test_github_outputs()
 
     # Print summary

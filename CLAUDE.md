@@ -26,7 +26,7 @@ uv run mypy src/layercode_gym
 uv run python -c "from layercode_gym import LayercodeClient, UserSimulator, Persona, Settings"
 
 # Run CLI directly
-uvx layercode-gym --text "Hello"
+uvx layercode-gym run --text "Hello"
 
 # Run an example
 python examples/01_text_messages.py

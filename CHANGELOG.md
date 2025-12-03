@@ -17,9 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - CriteriaJudge: LLM-as-Judge for evaluating conversations against user-defined true/false criteria with structured output
 - ResponseDataProcessor: Process `response.data` events into text so the AI simulator can "see" tool call results
+- `api-agents` CLI to manage Layercode agents (eg, swap webhook URLs for CI to test PRs)
 
 ### Updated
 - Changed default models to `gpt-5-mini` for more reallistic conversation simulations
+- Main gym runner grouped under `layercode-gym run` CLI command
 
 ## 0.0.1 - 2025-11-02
 

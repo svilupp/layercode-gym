@@ -16,6 +16,7 @@ import re
 import sys
 from dataclasses import dataclass
 
+import yaml
 from tqdm.asyncio import tqdm_asyncio
 
 
@@ -64,18 +65,30 @@ def sanitize_error(error: BaseException | str) -> str:
 
 @dataclass
 class PersonaConfig:
-    """Configuration for a single persona test."""
+    """Configuration for an AI-driven persona conversation."""
 
     background: str
     intent: str
 
 
 @dataclass
+class ScriptConfig:
+    """Configuration for a scripted conversation with fixed messages."""
+
+    messages: list[str]
+
+
+# Union type for conversation configurations
+ConversationConfig = PersonaConfig | ScriptConfig
+
+
+@dataclass
 class TestResult:
     """Result of a single conversation test."""
 
-    persona_index: int
+    config_index: int
     conversation_id: str
+    config_type: str = "persona"  # "persona" or "script"
     passed: bool | None = None  # None if judge not enabled
     judge_feedback: str = ""
 
@@ -108,37 +121,78 @@ class LayerCodeGymRunner:
             os.environ.get("LAYERCODE_STORE_AUDIO", "false").lower() == "true"
         )
 
-        # Parse personas
-        self.personas = self._parse_personas()
+        # Parse conversation configurations (personas and/or scripts)
+        self.conversations = self._parse_conversations()
 
         # Set GitHub output file
         self.github_output = os.environ.get("GITHUB_OUTPUT", "")
 
-    def _parse_personas(self) -> list[PersonaConfig]:
-        """Parse personas JSON from environment."""
+    def _parse_conversations(self) -> list[ConversationConfig]:
+        """Parse conversation configs (personas or scripts) from YAML/JSON."""
         try:
-            personas_data = json.loads(self.personas_json)
-            return [
-                PersonaConfig(background=p["background"], intent=p["intent"])
-                for p in personas_data
-            ]
-        except (json.JSONDecodeError, KeyError) as e:
-            print(f"❌ Error parsing personas JSON: {e}", file=sys.stderr)
-            print(f"Expected format: {self._example_personas_json()}", file=sys.stderr)
+            # YAML parser handles both YAML and JSON (JSON is valid YAML)
+            data = yaml.safe_load(self.personas_json)
+
+            if not isinstance(data, list):
+                raise ValueError("Input must be a YAML/JSON list")
+
+            configs: list[ConversationConfig] = []
+
+            for i, item in enumerate(data):
+                if not isinstance(item, dict):
+                    raise ValueError(f"Item {i}: must be an object/mapping")
+
+                if "messages" in item:
+                    # Script-based conversation
+                    messages = item["messages"]
+                    if not isinstance(messages, list):
+                        raise ValueError(f"Item {i}: 'messages' must be a list")
+                    if len(messages) == 0:
+                        raise ValueError(f"Item {i}: 'messages' list cannot be empty")
+                    if not all(isinstance(m, str) for m in messages):
+                        raise ValueError(f"Item {i}: all messages must be strings")
+                    configs.append(ScriptConfig(messages=messages))
+
+                elif "background" in item and "intent" in item:
+                    # AI persona conversation
+                    configs.append(
+                        PersonaConfig(
+                            background=str(item["background"]),
+                            intent=str(item["intent"]),
+                        )
+                    )
+                else:
+                    raise ValueError(
+                        f"Item {i}: must have either 'messages' or 'background'+'intent'"
+                    )
+
+            if not configs:
+                raise ValueError("At least one conversation config required")
+
+            return configs
+
+        except yaml.YAMLError as e:
+            print(f"Error: Invalid YAML in personas input: {e}", file=sys.stderr)
+            print(self._example_config_yaml(), file=sys.stderr)
+            sys.exit(1)
+        except (KeyError, ValueError, TypeError) as e:
+            print(f"Error: Error parsing conversation configs: {e}", file=sys.stderr)
+            print(self._example_config_yaml(), file=sys.stderr)
             sys.exit(1)
 
     @staticmethod
-    def _example_personas_json() -> str:
-        """Return example personas JSON format."""
-        return json.dumps(
-            [
-                {
-                    "background": "You are a 35-year-old small business owner",
-                    "intent": "Learn about voice AI capabilities",
-                }
-            ],
-            indent=2,
-        )
+    def _example_config_yaml() -> str:
+        """Return example configuration in YAML format."""
+        return """
+Expected format (YAML):
+  - background: You are a customer
+    intent: Get help with billing
+
+  - messages:
+      - Hello!
+      - I have a question
+      - Thanks!
+"""
 
     def _parse_judge_criteria(self, criteria_text: str) -> list[str]:
         """Parse judge criteria from YAML list format.
@@ -166,19 +220,19 @@ class LayerCodeGymRunner:
             elif line and not line.startswith("#"):
                 # Non-empty, non-comment line without "- " prefix
                 print(
-                    f"⚠️  Warning: judge-criteria line missing '- ' prefix: {line}",
+                    f"Warning: judge-criteria line missing '- ' prefix: {line}",
                     file=sys.stderr,
                 )
         return criteria
 
     async def run_single_conversation(
-        self, persona_index: int, persona: PersonaConfig
+        self, config_index: int, config: ConversationConfig
     ) -> TestResult:
-        """Run a single conversation with a persona.
+        """Run a single conversation with either a persona or script.
 
         Args:
-            persona_index: Index of the persona in the list
-            persona: Persona configuration
+            config_index: Index of the config in the list
+            config: PersonaConfig or ScriptConfig
 
         Returns:
             TestResult with conversation ID and optional judge result
@@ -186,19 +240,27 @@ class LayerCodeGymRunner:
         # Import here to avoid issues with uvx installation timing
         from layercode_gym import LayercodeClient, Persona, Settings, UserSimulator
 
-        # Create persona
-        gym_persona = Persona(
-            background_context=persona.background,
-            intent=persona.intent,
-        )
-
-        # Create simulator
-        simulator = UserSimulator.from_agent(
-            persona=gym_persona,
-            max_turns=self.max_turns,
-            send_as_text=True,  # Use text for faster CI execution
-            model=self.model,
-        )
+        # Create simulator based on config type
+        if isinstance(config, ScriptConfig):
+            # Scripted conversation with fixed messages
+            simulator = UserSimulator.from_text(
+                config.messages,
+                send_as_text=True,  # Use text for faster CI execution
+            )
+            config_type = "script"
+        else:
+            # AI-driven persona conversation
+            gym_persona = Persona(
+                background_context=config.background,
+                intent=config.intent,
+            )
+            simulator = UserSimulator.from_agent(
+                persona=gym_persona,
+                max_turns=self.max_turns,
+                send_as_text=True,  # Use text for faster CI execution
+                model=self.model,
+            )
+            config_type = "persona"
 
         # Load settings (will use env vars we set)
         settings = Settings.load()
@@ -210,8 +272,9 @@ class LayerCodeGymRunner:
         conversation_id = await client.run()
 
         return TestResult(
-            persona_index=persona_index,
+            config_index=config_index,
             conversation_id=conversation_id,
+            config_type=config_type,
         )
 
     async def run_judge(self, result: TestResult) -> TestResult:
@@ -223,7 +286,7 @@ class LayerCodeGymRunner:
         Returns:
             TestResult updated with judge evaluation
         """
-        print(f"   🔍 Judging conversation {result.conversation_id}...")
+        print(f"   Judging conversation {result.conversation_id}...")
 
         # Import here to avoid issues with uvx installation timing
         from layercode_gym import Settings
@@ -236,7 +299,7 @@ class LayerCodeGymRunner:
         transcript_file = conv_dir / "transcript.json"
 
         if not transcript_file.exists():
-            print(f"   ⚠️  Transcript not found for {result.conversation_id}")
+            print(f"   Warning: Transcript not found for {result.conversation_id}")
             result.passed = False
             result.judge_feedback = "Transcript not found"
             return result
@@ -271,25 +334,34 @@ class LayerCodeGymRunner:
         except Exception as e:
             # Sanitize error to prevent leaking API keys in CI logs
             safe_error = sanitize_error(e)
-            print(f"   ⚠️  Judge evaluation failed: {safe_error}")
+            print(f"   Warning: Judge evaluation failed: {safe_error}")
             result.passed = False
             result.judge_feedback = f"Judge error: {safe_error}"
 
         return result
 
     async def run_all_conversations(self) -> list[TestResult]:
-        """Run all persona conversations in parallel.
+        """Run all conversations in parallel.
 
         Returns:
             List of TestResults
         """
-        print(f"\n🚀 Running {len(self.personas)} conversations in parallel...")
+        # Count types for logging
+        persona_count = sum(
+            1 for c in self.conversations if isinstance(c, PersonaConfig)
+        )
+        script_count = sum(
+            1 for c in self.conversations if isinstance(c, ScriptConfig)
+        )
+
+        print(f"\nRunning {len(self.conversations)} conversations in parallel...")
+        print(f"   ({persona_count} AI personas, {script_count} scripted)")
         print("=" * 70)
 
-        # Create tasks for all personas
+        # Create tasks for all conversations
         tasks = [
-            self.run_single_conversation(i, persona)
-            for i, persona in enumerate(self.personas)
+            self.run_single_conversation(i, config)
+            for i, config in enumerate(self.conversations)
         ]
 
         # Run with progress bar
@@ -298,7 +370,7 @@ class LayerCodeGymRunner:
         )
 
         print("=" * 70)
-        print("✅ All conversations complete!")
+        print("All conversations complete.")
 
         return results
 
@@ -314,7 +386,7 @@ class LayerCodeGymRunner:
         if not self.judge_enabled:
             return results
 
-        print("\n🏛️  Running judge evaluations...")
+        print("\nRunning judge evaluations...")
         print("=" * 70)
 
         # Run judges in parallel
@@ -324,30 +396,31 @@ class LayerCodeGymRunner:
         )
 
         print("=" * 70)
-        print("✅ All evaluations complete!")
+        print("All evaluations complete.")
 
         return results
 
     def print_summary(self, results: list[TestResult]) -> None:
         """Print test summary and set GitHub Action outputs."""
         print("\n" + "=" * 70)
-        print("📊 TEST RESULTS SUMMARY")
+        print("TEST RESULTS SUMMARY")
         print("=" * 70)
 
         total = len(results)
         passed = sum(1 for r in results if r.passed is True)
         failed = sum(1 for r in results if r.passed is False)
 
-        print(f"\n📈 Conversations Run: {total}")
+        print(f"\nConversations Run: {total}")
 
         if self.judge_enabled:
-            print(f"✅ Passed: {passed}")
-            print(f"❌ Failed: {failed}")
+            print(f"Passed: {passed}")
+            print(f"Failed: {failed}")
 
-            print("\n📋 Details:")
+            print("\nDetails:")
             for i, result in enumerate(results, 1):
-                status = "✅ PASS" if result.passed else "❌ FAIL"
-                print(f"   {i}. Persona {result.persona_index + 1}: {status}")
+                status = "PASS" if result.passed else "FAIL"
+                type_label = "[script]" if result.config_type == "script" else "[persona]"
+                print(f"   {i}. {type_label} Config {result.config_index + 1}: {status}")
                 print(f"      Conversation: {result.conversation_id}")
                 if result.judge_feedback:
                     feedback_preview = (
@@ -358,11 +431,12 @@ class LayerCodeGymRunner:
                     print(f"      Feedback: {feedback_preview}")
 
         else:
-            print("ℹ️  Judge not enabled - no pass/fail evaluation")
+            print("Judge not enabled - no pass/fail evaluation")
             for i, result in enumerate(results, 1):
-                print(f"   {i}. Conversation: {result.conversation_id}")
+                type_label = "[script]" if result.config_type == "script" else "[persona]"
+                print(f"   {i}. {type_label} Conversation: {result.conversation_id}")
 
-        print("\n📁 Results Location: ./conversations/")
+        print("\nResults Location: ./conversations/")
         print("=" * 70)
 
         # Set GitHub Action outputs
@@ -392,10 +466,10 @@ class LayerCodeGymRunner:
 
         # Fail if any conversation failed
         if any(r.passed is False for r in results):
-            print("\n❌ Some conversations failed judge evaluation")
+            print("\nSome conversations failed judge evaluation.")
             return 1
 
-        print("\n✅ All conversations passed!")
+        print("\nAll conversations passed.")
         return 0
 
     async def run(self) -> int:
@@ -405,12 +479,23 @@ class LayerCodeGymRunner:
             Exit code (0 for success, 1 for failure)
         """
         print("=" * 70)
-        print("🎯 LayerCode Gym CI Test Runner")
+        print("LayerCode Gym CI Test Runner")
         print("=" * 70)
         print("\nConfiguration:")
         print(f"  • Agent ID: {self.agent_id}")
         print(f"  • Server URL: {self.server_url}")
-        print(f"  • Personas: {len(self.personas)}")
+
+        # Count conversation types
+        persona_count = sum(
+            1 for c in self.conversations if isinstance(c, PersonaConfig)
+        )
+        script_count = sum(
+            1 for c in self.conversations if isinstance(c, ScriptConfig)
+        )
+        print(f"  • Conversations: {len(self.conversations)}")
+        print(f"    - AI Personas: {persona_count}")
+        print(f"    - Scripted: {script_count}")
+
         print(f"  • Max Turns: {self.max_turns}")
         print(f"  • Model: {self.model}")
         print(f"  • Store Audio: {self.store_audio}")
@@ -422,10 +507,10 @@ class LayerCodeGymRunner:
             for i, criterion in enumerate(self.judge_criteria, 1):
                 print(f"      {i}. {criterion}")
         if self.logfire_token:
-            print("  • LogFire: Enabled ✓")
+            print("  • LogFire: Enabled")
 
         print(
-            "\n💡 Note: Configure webhook before running tests using:\n"
+            "\nNote: Configure webhook before running tests using:\n"
             f"   layercode-gym api-agents update --agent-id {self.agent_id} "
             f"--webhook-url {self.server_url}/api/webhook\n"
         )

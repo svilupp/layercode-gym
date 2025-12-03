@@ -18,7 +18,7 @@ Perfect for regression testing, load testing, and automated evaluation of your v
 - **Captured Analytics**: Full transcripts with TTFAB, latency stats, and audio recordings
 - **LogFire Integration**: Real-time observability and debugging
 - **Batch Testing**: Run hundreds of conversations concurrently
-- **CLI & Python API**: Quick testing via CLI or programmatic control
+- **CLI & Python API**: Quick testing via CLI or programmatic control, plus `api-agents` CLI to swap webhook URLs for CI
 - **LLM-as-Judge**: Bring your own quality evaluation with customizable criteria as a conversational hook
 - **GitHub Actions Integration**: Automated CI/CD testing with parallel persona execution
 
@@ -43,21 +43,21 @@ export SERVER_URL="http://localhost:8001"
 export LAYERCODE_AGENT_ID="your_agent_id"
 
 # Run instantly with uvx (no installation)
-uvx layercode-gym --text "Hello, I need help with my account"
+uvx layercode-gym run --text "Hello, I need help with my account"
 
 # Multiple messages
-uvx layercode-gym --text "Hi" --text "Tell me more" --text "Goodbye"
+uvx layercode-gym run --text "Hi" --text "Tell me more" --text "Goodbye"
 
 # Audio file
-uvx layercode-gym --file recording.wav
+uvx layercode-gym run --file recording.wav
 
 # AI agent with persona
-uvx layercode-gym --agent \
+uvx layercode-gym run --agent \
   --persona-background "You are a frustrated customer" \
   --persona-intent "Cancel your subscription"
 ```
 
-Run `uvx layercode-gym --help` for all options.
+Run `uvx layercode-gym --help` to see available commands, or `uvx layercode-gym run --help` for all run options.
 
 ### Python API
 

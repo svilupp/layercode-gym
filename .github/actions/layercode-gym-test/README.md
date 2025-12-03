@@ -5,6 +5,7 @@ A GitHub Action for running automated conversational AI tests using LayerCode Gy
 ## Features
 
 - **Multiple Personas**: Test with multiple user personas simultaneously
+- **Scripted Conversations**: Run deterministic tests with fixed message sequences
 - **Parallel Execution**: All conversations run concurrently for maximum speed
 - **Automated Judging**: Optional LLM-based evaluation with pass/fail criteria
 - **Detailed Reports**: Conversation transcripts, audio recordings, and judge feedback
@@ -34,16 +35,11 @@ jobs:
         uses: ./.github/actions/layercode-gym-test
         with:
           personas: |
-            [
-              {
-                "background": "You are a 35-year-old small business owner interested in AI",
-                "intent": "Learn about voice AI capabilities and pricing"
-              },
-              {
-                "background": "You are a technical developer evaluating voice APIs",
-                "intent": "Understand technical integration requirements"
-              }
-            ]
+            - background: You are a 35-year-old small business owner interested in AI
+              intent: Learn about voice AI capabilities and pricing
+
+            - background: You are a technical developer evaluating voice APIs
+              intent: Understand technical integration requirements
           max-turns: 5
           judge-enabled: true
           judge-criteria: |
@@ -60,23 +56,47 @@ jobs:
 ### Required Inputs
 
 #### `personas`
-**Type**: JSON array
-**Description**: Array of persona objects to test. Each persona must have:
+**Type**: YAML list
+**Description**: List of conversation configurations. Supports two formats that can be mixed:
+
+**1. AI Persona (dynamic, AI-driven responses)**:
 - `background`: Who the user is (context, role, characteristics)
 - `intent`: What they want to achieve
 
-**Example**:
-```json
-[
-  {
-    "background": "You are a frustrated customer who has been waiting on hold",
-    "intent": "Cancel your subscription immediately"
-  },
-  {
-    "background": "You are a potential customer researching solutions",
-    "intent": "Learn about features and pricing"
-  }
-]
+**2. Scripted Messages (deterministic, fixed responses)**:
+- `messages`: List of exact messages to send in sequence
+
+**Example (AI personas)**:
+```yaml
+personas: |
+  - background: You are a frustrated customer who has been waiting on hold
+    intent: Cancel your subscription immediately
+
+  - background: You are a potential customer researching solutions
+    intent: Learn about features and pricing
+```
+
+**Example (scripted conversations)**:
+```yaml
+personas: |
+  - messages:
+      - Hello, I need to check my account balance
+      - Yes, my account number is 12345
+      - Thank you, goodbye
+```
+
+**Example (mixed)**:
+```yaml
+personas: |
+  # AI-driven persona for dynamic testing
+  - background: You are a frustrated customer
+    intent: Get a refund for a broken product
+
+  # Scripted conversation for regression testing
+  - messages:
+      - Hello, what are your business hours?
+      - Do you have weekend support?
+      - Thanks, goodbye
 ```
 
 #### `server-url`
@@ -214,20 +234,14 @@ jobs:
         uses: ./.github/actions/layercode-gym-test
         with:
           personas: |
-            [
-              {
-                "background": "You are a frustrated customer who has been overcharged",
-                "intent": "Get a refund and explanation"
-              },
-              {
-                "background": "You are a happy customer wanting to upgrade",
-                "intent": "Learn about premium features"
-              },
-              {
-                "background": "You are a confused new user",
-                "intent": "Understand how to get started"
-              }
-            ]
+            - background: You are a frustrated customer who has been overcharged
+              intent: Get a refund and explanation
+
+            - background: You are a happy customer wanting to upgrade
+              intent: Learn about premium features
+
+            - background: You are a confused new user
+              intent: Understand how to get started
           max-turns: 7
           judge-enabled: true
           judge-criteria: |
@@ -265,16 +279,11 @@ jobs:
         uses: ./.github/actions/layercode-gym-test
         with:
           personas: |
-            [
-              {
-                "background": "You are a developer evaluating the API",
-                "intent": "Understand authentication, rate limits, and SDKs"
-              },
-              {
-                "background": "You are a DevOps engineer setting up monitoring",
-                "intent": "Learn about webhooks, logging, and error handling"
-              }
-            ]
+            - background: You are a developer evaluating the API
+              intent: Understand authentication, rate limits, and SDKs
+
+            - background: You are a DevOps engineer setting up monitoring
+              intent: Learn about webhooks, logging, and error handling
           max-turns: 10
           judge-enabled: true
           judge-criteria: |
@@ -450,6 +459,7 @@ steps:
 
 - [LayerCode Gym Documentation](../../../docs/)
 - [LayerCode REST API Docs](https://docs.layercode.com/api-reference/rest-api)
+- [`api-agents` CLI](../../../docs/api-agents.md) - Swap webhook URLs for PR backend testing
 - [Example Workflows](../../workflows/)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 

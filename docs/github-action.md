@@ -7,6 +7,7 @@ Run automated tests for your voice agents in CI/CD pipelines with the LayerCode 
 The LayerCode Gym GitHub Action enables you to:
 
 - **Test multiple personas** in parallel for maximum speed
+- **Scripted conversations** for deterministic regression testing
 - **Automated judging** with LLM-based quality evaluation
 - **Track quality over time** with historical test results
 - **Continuous regression testing** on every commit
@@ -56,12 +57,8 @@ jobs:
         uses: ./.github/actions/layercode-gym-test
         with:
           personas: |
-            [
-              {
-                "background": "You are a potential customer",
-                "intent": "Learn about pricing and features"
-              }
-            ]
+            - background: You are a potential customer
+              intent: Learn about pricing and features
           judge-enabled: true
           judge-criteria: |
             - Did the agent provide clear pricing information?
@@ -76,25 +73,24 @@ Push your code and watch the tests run automatically!
 
 ## Configuration
 
-### Personas
+### Conversation Types
 
-Personas define the users you want to simulate. Each persona has:
+The action supports two types of conversations that can be mixed:
+
+#### AI Personas (Dynamic)
+
+Personas define users with AI-driven responses. Each persona has:
 
 - **`background`**: Who the user is (role, context, characteristics)
 - **`intent`**: What they want to achieve
 
 ```yaml
 personas: |
-  [
-    {
-      "background": "You are a 35-year-old small business owner interested in AI",
-      "intent": "Learn how voice AI can help your customer service"
-    },
-    {
-      "background": "You are a technical developer evaluating APIs",
-      "intent": "Understand integration requirements and documentation"
-    }
-  ]
+  - background: You are a 35-year-old small business owner interested in AI
+    intent: Learn how voice AI can help your customer service
+
+  - background: You are a technical developer evaluating APIs
+    intent: Understand integration requirements and documentation
 ```
 
 **Tips for writing good personas:**
@@ -103,7 +99,46 @@ personas: |
 - Include relevant context (frustrations, goals, technical level)
 - Make intents clear and actionable
 - Avoid making personas too similar
-- Avoid making intents too vague
+
+#### Scripted Messages (Deterministic)
+
+Scripted conversations send exact message sequences for reproducible tests:
+
+```yaml
+personas: |
+  - messages:
+      - Hello, I need to check my account balance
+      - My account number is 12345
+      - Thank you, goodbye
+```
+
+**Use cases for scripted conversations:**
+
+- Regression testing specific scenarios
+- Testing exact edge cases
+- Reproducing reported issues
+- Load testing with known inputs
+
+#### Mixed Configurations
+
+Combine both types in a single test run:
+
+```yaml
+personas: |
+  # Dynamic persona for exploratory testing
+  - background: You are a frustrated customer
+    intent: Get a refund for a defective product
+
+  # Scripted conversation for regression testing
+  - messages:
+      - Hello, what are your business hours?
+      - Do you have weekend support?
+      - Thanks
+
+  # Another dynamic persona
+  - background: You are a technical user
+    intent: Ask about API rate limits
+```
 
 ### Judge Criteria
 
@@ -157,7 +192,7 @@ See the [Action README](.github/actions/layercode-gym-test/README.md) for comple
 
 ### Regression Testing
 
-Run tests on every push to catch regressions:
+Run tests on every push to catch regressions. Use scripted conversations for deterministic tests:
 
 ```yaml
 name: Regression Tests
@@ -175,11 +210,18 @@ jobs:
       - uses: ./.github/actions/layercode-gym-test
         with:
           personas: |
-            [
-              {"background": "Returning customer", "intent": "Check order status"},
-              {"background": "New user", "intent": "Create account"},
-              {"background": "Support case", "intent": "Report a bug"}
-            ]
+            # Scripted regression tests for known scenarios
+            - messages:
+                - Hello, I want to check my order status
+                - Order number 12345
+                - Thanks
+
+            # AI persona for dynamic testing
+            - background: Returning customer
+              intent: Check order status
+
+            - background: New user
+              intent: Create account
           judge-enabled: true
           judge-criteria: |
             - Did the agent handle the request correctly?
@@ -211,13 +253,20 @@ jobs:
       - uses: ./.github/actions/layercode-gym-test
         with:
           personas: |
-            [
-              {"background": "Happy customer", "intent": "Provide positive feedback"},
-              {"background": "Angry customer", "intent": "Demand refund"},
-              {"background": "Confused user", "intent": "Understand product features"},
-              {"background": "Price-sensitive shopper", "intent": "Find cheapest option"},
-              {"background": "Enterprise buyer", "intent": "Discuss bulk pricing"}
-            ]
+            - background: Happy customer
+              intent: Provide positive feedback
+
+            - background: Angry customer
+              intent: Demand refund
+
+            - background: Confused user
+              intent: Understand product features
+
+            - background: Price-sensitive shopper
+              intent: Find cheapest option
+
+            - background: Enterprise buyer
+              intent: Discuss bulk pricing
           max-turns: 10
           judge-enabled: true
           judge-criteria: |
@@ -255,11 +304,14 @@ jobs:
         uses: ./.github/actions/layercode-gym-test
         with:
           personas: |
-            [
-              {"background": "Critical user journey 1", "intent": "Complete purchase"},
-              {"background": "Critical user journey 2", "intent": "Get support"},
-              {"background": "Critical user journey 3", "intent": "Update account"}
-            ]
+            - background: Critical user journey 1
+              intent: Complete purchase
+
+            - background: Critical user journey 2
+              intent: Get support
+
+            - background: Critical user journey 3
+              intent: Update account
           judge-enabled: true
           judge-criteria: |
             - Did all critical paths complete successfully?
@@ -343,14 +395,27 @@ Begin with a few core personas and add more over time:
 
 ```yaml
 # Week 1: Core happy paths
-personas: [happy_customer, new_user]
+personas: |
+  - background: Happy customer
+    intent: Complete a purchase
+
+  - background: New user
+    intent: Learn about the product
 
 # Week 2: Add edge cases
-personas: [happy_customer, new_user, frustrated_customer]
+personas: |
+  - background: Happy customer
+    intent: Complete a purchase
+  - background: Frustrated customer
+    intent: Request a refund
 
-# Week 3: Comprehensive coverage
-personas: [happy_customer, new_user, frustrated_customer,
-           technical_user, enterprise_buyer, ...]
+# Week 3: Add scripted regression tests
+personas: |
+  - background: Happy customer
+    intent: Complete a purchase
+  - messages:
+      - Hello, I want to cancel my order
+      - Order number 12345
 ```
 
 ### 3. Use Different Models for Different Tests
@@ -514,6 +579,7 @@ steps:
 
 - [See complete action documentation](.github/actions/layercode-gym-test/README.md)
 - [View example workflows](.github/workflows/example-gym-test.yml)
+- [`api-agents` CLI](api-agents.md) - Swap webhook URLs to test PR backends in CI
 - [Read API reference](api-reference.md)
 - [Explore advanced features](advanced.md)
 
