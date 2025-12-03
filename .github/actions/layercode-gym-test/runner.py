@@ -291,7 +291,7 @@ Expected format (YAML):
         # Import here to avoid issues with uvx installation timing
         from layercode_gym import Settings
         from layercode_gym.agents.judge import CriteriaJudge
-        from layercode_gym.models.conversation import ConversationLog
+        from layercode_gym.models.conversation import conversation_log_from_dict
 
         # Load conversation log
         settings = Settings.load()
@@ -307,7 +307,7 @@ Expected format (YAML):
         # Parse transcript
         with open(transcript_file) as f:
             log_data = json.load(f)
-            log = ConversationLog(**log_data)
+            log = conversation_log_from_dict(log_data)
 
         # Use default criterion if none provided
         criteria = self.judge_criteria or [
@@ -514,7 +514,7 @@ Expected format (YAML):
         print(
             "\nNote: Configure webhook before running tests using:\n"
             f"   layercode-gym api-agents update --agent-id {self.agent_id} "
-            f"--webhook-url {self.server_url}/api/webhook\n"
+            f"--webhook-url {self.server_url}/api/agent\n"
         )
 
         # Run conversations

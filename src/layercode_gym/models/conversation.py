@@ -222,3 +222,43 @@ def _message_to_dict(message: Message | None) -> dict[str, Any] | None:
             for attachment in message.attachments
         ],
     }
+
+
+def _message_from_dict(data: dict[str, Any] | None) -> Message | None:
+    """Deserialize a dict back into a Message object."""
+    if data is None:
+        return None
+    return Message(
+        role=data["role"],
+        content=data.get("content"),
+        audio_path=Path(data["audio_path"]) if data.get("audio_path") else None,
+        turn_id=data.get("turn_id"),
+        timestamp=datetime.fromisoformat(data["timestamp"]),
+        attachments=tuple(
+            Attachment(path=Path(a["path"]), kind=a["kind"])
+            for a in data.get("attachments", [])
+        ),
+    )
+
+
+def conversation_log_from_dict(data: dict[str, Any]) -> ConversationLog:
+    """Deserialize a dict (from JSON) back into a ConversationLog object."""
+    turns = []
+    for turn_data in data.get("turns", []):
+        turn = ConversationTurn(
+            user_message=_message_from_dict(turn_data.get("user")),
+            assistant_message=_message_from_dict(turn_data.get("assistant")),
+        )
+        turns.append(turn)
+
+    return ConversationLog(
+        conversation_id=data["conversation_id"],
+        created_at=datetime.fromisoformat(data["created_at"]),
+        turns=turns,
+        files=[
+            Attachment(path=Path(f["path"]), kind=f["kind"])
+            for f in data.get("files", [])
+        ],
+        # Stats are optional and computed, not loaded from JSON
+        stats=None,
+    )
