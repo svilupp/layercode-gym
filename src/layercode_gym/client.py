@@ -295,7 +295,9 @@ class LayercodeClient:
                     audio_event = cast(ResponseAudioEvent, payload)
                     if self._assistant_state.turn_id is None:
                         # turn_id is optional - generate fallback if not present
-                        turn_id = audio_event.get("turn_id") or f"turn_{id(audio_event)}"
+                        turn_id = (
+                            audio_event.get("turn_id") or f"turn_{id(audio_event)}"
+                        )
                         self._assistant_state.reset(turn_id)
                     self._assistant_state.append_audio(audio_event["content"])
                     # Reset idle timer every time we receive audio
@@ -681,10 +683,15 @@ class LayercodeClient:
         """Schedule a timer to trigger user turn after assistant idle timeout."""
         self._cancel_assistant_idle_timer()
         if self.assistant_idle_timeout <= 0:
-            logger.debug("Idle timeout disabled (timeout=%s)", self.assistant_idle_timeout)
+            logger.debug(
+                "Idle timeout disabled (timeout=%s)", self.assistant_idle_timeout
+            )
             return
 
-        logger.info("Scheduling assistant idle timer for %s seconds", self.assistant_idle_timeout)
+        logger.info(
+            "Scheduling assistant idle timer for %s seconds",
+            self.assistant_idle_timeout,
+        )
 
         async def idle_timer() -> None:
             try:
