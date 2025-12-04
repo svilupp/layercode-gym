@@ -121,6 +121,12 @@ class LayerCodeGymRunner:
             os.environ.get("LAYERCODE_STORE_AUDIO", "false").lower() == "true"
         )
 
+        # Custom authorization configuration
+        self.authorize_path = os.environ.get("AUTHORIZE_PATH", "/api/authorize")
+        self.custom_metadata = os.environ.get("LAYERCODE_CUSTOM_METADATA", "")
+        self.custom_headers = os.environ.get("LAYERCODE_CUSTOM_HEADERS", "")
+        self.authorization_headers = os.environ.get("LAYERCODE_AUTH_HEADERS", "")
+
         # Parse conversation configurations (personas and/or scripts)
         self.conversations = self._parse_conversations()
 
@@ -501,6 +507,14 @@ Expected format (YAML):
         print(f"  • Max Turns: {self.max_turns}")
         print(f"  • Model: {self.model}")
         print(f"  • Store Audio: {self.store_audio}")
+        if self.authorize_path != "/api/authorize":
+            print(f"  • Authorize Path: {self.authorize_path}")
+        if self.custom_metadata:
+            print(f"  • Custom Metadata: (configured)")
+        if self.custom_headers:
+            print(f"  • Custom Headers: (configured)")
+        if self.authorization_headers:
+            print(f"  • Authorization Headers: (configured)")
         print(f"  • Judge Enabled: {self.judge_enabled}")
         if self.judge_enabled:
             print(f"  • Fail on Judge Failure: {self.fail_on_judge_failure}")

@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Updated
 
+## 0.2.0 - 2025-12-03
+
+### Added
+- Custom metadata, custom headers, and authorization headers support for LayerCode authorization requests (library, CLI, and GitHub Action)
+
 ## 0.1.1 - 2025-12-02
 
 ### Fixed

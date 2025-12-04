@@ -15,7 +15,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 from layercode_gym import (
     LayercodeClient,
@@ -149,6 +149,34 @@ def create_run_parser(
         help=(
             "Your LayerCode agent ID from the dashboard. "
             "Default: LAYERCODE_AGENT_ID env var"
+        ),
+    )
+    server_group.add_argument(
+        "--custom-metadata",
+        metavar="JSON",
+        help=(
+            "Custom metadata to include in authorization (JSON string). "
+            "This data is stored with the session. "
+            'Example: \'{"tenant_id": "t_42"}\''
+        ),
+    )
+    server_group.add_argument(
+        "--custom-headers",
+        metavar="JSON",
+        help=(
+            "Custom headers for outbound webhooks (JSON string). "
+            "These headers are sent with every webhook from LayerCode. "
+            'Example: \'{"x-tenant-id": "t_42"}\''
+        ),
+    )
+    server_group.add_argument(
+        "--auth-header",
+        action="append",
+        dest="auth_headers",
+        metavar="KEY=VALUE",
+        help=(
+            "Header to send with the authorization request (repeatable). "
+            "Format: KEY=VALUE. Example: --auth-header 'Authorization=Bearer token'"
         ),
     )
 
@@ -443,12 +471,13 @@ def validate_run_args(args: argparse.Namespace) -> None:
 
 def build_settings(args: argparse.Namespace) -> Settings:
     """Build Settings object from CLI args, using env vars as fallback."""
+    import json as json_module
 
     # Start with defaults from environment
     settings = Settings.load()
 
     # Build override dict (only include explicitly set values)
-    overrides = {}
+    overrides: dict[str, Any] = {}
 
     if args.server_url is not None:
         overrides["server_url"] = args.server_url
@@ -468,6 +497,46 @@ def build_settings(args: argparse.Namespace) -> Settings:
         overrides["chunk_ms"] = args.chunk_ms
     if args.chunk_interval is not None:
         overrides["chunk_interval"] = args.chunk_interval
+
+    # Parse custom metadata JSON
+    if args.custom_metadata is not None:
+        try:
+            parsed = json_module.loads(args.custom_metadata)
+            if not isinstance(parsed, dict):
+                print("Error: --custom-metadata must be a JSON object", file=sys.stderr)
+                sys.exit(1)
+            overrides["custom_metadata"] = parsed
+        except json_module.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in --custom-metadata: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # Parse custom headers JSON (values must be strings for HTTP)
+    if args.custom_headers is not None:
+        try:
+            parsed = json_module.loads(args.custom_headers)
+            if not isinstance(parsed, dict):
+                print("Error: --custom-headers must be a JSON object", file=sys.stderr)
+                sys.exit(1)
+            # Convert all values to strings for HTTP compatibility
+            overrides["custom_headers"] = {k: str(v) for k, v in parsed.items()}
+        except json_module.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in --custom-headers: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # Parse auth headers (KEY=VALUE format)
+    if args.auth_headers:
+        auth_headers: dict[str, str] = {}
+        for header in args.auth_headers:
+            if "=" not in header:
+                print(
+                    f"Error: Invalid --auth-header format: '{header}'. "
+                    "Expected KEY=VALUE",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            key, value = header.split("=", 1)
+            auth_headers[key.strip()] = value.strip()
+        overrides["authorization_headers"] = auth_headers
 
     # Create new settings with overrides
     if overrides:

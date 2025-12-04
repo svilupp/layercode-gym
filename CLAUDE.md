@@ -84,3 +84,7 @@ Optional:
 - `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`: TTS configuration
 - `LAYERCODE_OUTPUT_ROOT`: Output directory (default: `./conversations`)
 - `LAYERCODE_STORE_AUDIO`: Set to `false` to skip audio file storage (default: `true`). Useful for CI where ffmpeg may not be available.
+- `AUTHORIZE_PATH`: Authorization endpoint path (default: `/api/authorize`)
+- `LAYERCODE_CUSTOM_METADATA`: JSON object with custom metadata for authorization (e.g., `'{"tenant_id": "t_42"}'`)
+- `LAYERCODE_CUSTOM_HEADERS`: JSON object with custom headers for outbound webhooks (e.g., `'{"x-tenant-id": "t_42"}'`)
+- `LAYERCODE_AUTH_HEADERS`: JSON object with headers to send TO the authorization endpoint (e.g., `'{"Authorization": "Bearer token"}'`)
