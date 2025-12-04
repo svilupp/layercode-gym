@@ -6,16 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-### Fixed
-
-### Updated
-
-## 0.2.1 - 2025-12-04
+## 0.3.0 - 2025-12-04
 
 ### Added
 - Support for camelCase authorization response keys (`clientSessionKey`, `conversationId`) in addition to snake_case, enabling compatibility with more backend implementations
+
+### Fixed
+- Fixed idle timeout not triggering on resumed conversations where backend skips welcome message
+- Made `turn_id` optional in `response.audio`, `response.text`, and `response.data` events for backend compatibility
 
 ## 0.2.0 - 2025-12-03
 

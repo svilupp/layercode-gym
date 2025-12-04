@@ -3,7 +3,7 @@ from __future__ import annotations
 """Typed representations of LayerCode WebSocket events."""
 
 from dataclasses import dataclass
-from typing import Literal, TypedDict, Any
+from typing import Literal, TypedDict, Any, NotRequired
 
 # ---- Client -> Server messages -------------------------------------------------
 
@@ -77,14 +77,14 @@ class TurnStartEvent(TypedDict):
 class ResponseAudioEvent(TypedDict):
     type: ResponseAudioType
     content: str
-    delta_id: str
-    turn_id: str
+    delta_id: NotRequired[str]  # Optional - not all backends include delta_id
+    turn_id: NotRequired[str]  # Optional - not all backends include turn_id
 
 
 class ResponseTextEvent(TypedDict):
     type: ResponseTextType
     content: str
-    turn_id: str
+    turn_id: NotRequired[str]  # Optional - not all backends include turn_id
 
 
 class UserTranscriptInterimEvent(TypedDict):
@@ -110,7 +110,7 @@ class UserTranscriptEvent(TypedDict):
 class ResponseDataEvent(TypedDict):
     type: ResponseDataType
     content: dict[str, Any]
-    turn_id: str
+    turn_id: NotRequired[str]  # Optional - not all backends include turn_id
 
 
 ServerEvent = (
