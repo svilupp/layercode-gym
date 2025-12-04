@@ -4,13 +4,37 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 import os
-from typing import Final
+from typing import Any, Final
 
 from dotenv import load_dotenv
 
 
 load_dotenv()
+
+
+def _parse_json_env(var_name: str) -> dict[str, Any] | None:
+    """Parse a JSON environment variable, returning None if empty or invalid."""
+    value = os.getenv(var_name, "").strip()
+    if not value:
+        return None
+    try:
+        parsed = json.loads(value)
+        if not isinstance(parsed, dict):
+            return None
+        return parsed
+    except json.JSONDecodeError:
+        return None
+
+
+def _parse_json_env_str_values(var_name: str) -> dict[str, str] | None:
+    """Parse a JSON env var, ensuring all values are strings (for HTTP headers)."""
+    parsed = _parse_json_env(var_name)
+    if parsed is None:
+        return None
+    # Convert all values to strings (HTTP headers must be strings)
+    return {k: str(v) for k, v in parsed.items()}
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +56,10 @@ class Settings:
     chunk_interval: float  # Delay between chunks in seconds (default: 0.0)
     # Audio storage (can be disabled for CI to skip ffmpeg dependency)
     store_audio: bool  # Whether to store audio files (default: True)
+    # Custom authorization fields (for LayerCode API)
+    custom_metadata: dict[str, Any] | None  # Passed to LayerCode in payload
+    custom_headers: dict[str, str] | None  # Headers for outbound webhooks
+    authorization_headers: dict[str, str] | None  # Headers for auth request
 
     @classmethod
     def load(cls) -> "Settings":
@@ -58,6 +86,12 @@ class Settings:
         # Audio storage (can be disabled for CI to skip ffmpeg dependency)
         store_audio = os.getenv("LAYERCODE_STORE_AUDIO", "true").lower() == "true"
 
+        # Custom authorization fields (JSON strings from env vars)
+        custom_metadata = _parse_json_env("LAYERCODE_CUSTOM_METADATA")
+        # Headers must have string values (for HTTP compatibility)
+        custom_headers = _parse_json_env_str_values("LAYERCODE_CUSTOM_HEADERS")
+        authorization_headers = _parse_json_env_str_values("LAYERCODE_AUTH_HEADERS")
+
         return cls(
             server_url=server_url,
             authorize_path=authorize_path,
@@ -71,6 +105,9 @@ class Settings:
             chunk_ms=chunk_ms,
             chunk_interval=chunk_interval,
             store_audio=store_audio,
+            custom_metadata=custom_metadata,
+            custom_headers=custom_headers,
+            authorization_headers=authorization_headers,
         )
 
 

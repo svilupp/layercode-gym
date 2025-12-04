@@ -87,6 +87,35 @@ inputs:
     required: false
     default: 'false'
 
+  authorize-path:
+    description: 'Authorization endpoint path on your backend server'
+    required: false
+    default: '/api/authorize'
+
+  custom-metadata:
+    description: |
+      JSON object with custom metadata to include in authorization.
+      This data is stored with the session in LayerCode.
+      Example: '{"tenant_id": "t_42", "plan": "enterprise"}'
+    required: false
+    default: ''
+
+  custom-headers:
+    description: |
+      JSON object with custom headers for outbound webhooks.
+      These headers are sent with every webhook request from LayerCode to your server.
+      Example: '{"x-tenant-id": "t_42", "x-session-origin": "ci"}'
+    required: false
+    default: ''
+
+  authorization-headers:
+    description: |
+      JSON object with headers to send TO the authorization endpoint.
+      Useful when your backend requires authentication.
+      Example: '{"Authorization": "Bearer token123", "X-API-Key": "key"}'
+    required: false
+    default: ''
+
 outputs:
   conversations-run:
     description: 'Number of conversations executed'
@@ -144,6 +173,10 @@ runs:
         FAIL_ON_JUDGE_FAILURE: ${{ inputs.fail-on-judge-failure }}
         MODEL: ${{ inputs.model }}
         LAYERCODE_STORE_AUDIO: ${{ inputs.store-audio }}
+        AUTHORIZE_PATH: ${{ inputs.authorize-path }}
+        LAYERCODE_CUSTOM_METADATA: ${{ inputs.custom-metadata }}
+        LAYERCODE_CUSTOM_HEADERS: ${{ inputs.custom-headers }}
+        LAYERCODE_AUTH_HEADERS: ${{ inputs.authorization-headers }}
       run: |
         # Install layercode-gym and run the orchestration script
         uv run --with layercode-gym ${{ github.action_path }}/runner.py

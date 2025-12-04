@@ -212,10 +212,19 @@ class LayercodeClient:
         authorize_url = f"{base_url}/{auth_path}"
         logger.info("Authorizing with backend: %s", authorize_url)
 
+        # Build headers (include any custom authorization headers)
         headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self.settings.authorization_headers:
+            headers.update(self.settings.authorization_headers)
+
+        # Build payload
         payload: dict[str, Any] = {"agent_id": agent_id}
         if conversation_id:
             payload["conversation_id"] = conversation_id
+        if self.settings.custom_metadata:
+            payload["custom_metadata"] = self.settings.custom_metadata
+        if self.settings.custom_headers:
+            payload["custom_headers"] = self.settings.custom_headers
         logger.debug("Authorization payload: %s", payload)
 
         async with httpx.AsyncClient(timeout=timeout) as client:

@@ -1015,6 +1015,10 @@ def test_consistency() -> None:
         "judge-criteria": "JUDGE_CRITERIA",
         "model": "MODEL",
         "store-audio": "LAYERCODE_STORE_AUDIO",
+        "authorize-path": "AUTHORIZE_PATH",
+        "custom-metadata": "LAYERCODE_CUSTOM_METADATA",
+        "custom-headers": "LAYERCODE_CUSTOM_HEADERS",
+        "authorization-headers": "LAYERCODE_AUTH_HEADERS",
     }
 
     for input_name, env_name in input_to_env.items():
