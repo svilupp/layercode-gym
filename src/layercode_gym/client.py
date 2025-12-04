@@ -233,15 +233,20 @@ class LayercodeClient:
             data = response.json()
             logger.debug("Authorization response: %s", data)
 
-        session = data.get("client_session_key")
+        # Support both snake_case and camelCase response keys for compatibility
+        session = data.get("client_session_key") or data.get("clientSessionKey")
         conv_id = (
-            data.get("conversation_id") if conversation_id is None else conversation_id
+            data.get("conversation_id") or data.get("conversationId")
+            if conversation_id is None
+            else conversation_id
         )
         if not isinstance(session, str) or not session:
-            msg = "Authorization response missing client_session_key"
+            msg = (
+                "Authorization response missing client_session_key or clientSessionKey"
+            )
             raise RuntimeError(msg)
         if not isinstance(conv_id, str) or not conv_id:
-            msg = "Authorization response missing conversation_id"
+            msg = "Authorization response missing conversation_id or conversationId"
             raise RuntimeError(msg)
         return AuthorizationResult(conversation_id=conv_id, client_session_key=session)
 

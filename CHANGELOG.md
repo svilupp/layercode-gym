@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Updated
 
+## 0.2.1 - 2025-12-04
+
+### Added
+- Support for camelCase authorization response keys (`clientSessionKey`, `conversationId`) in addition to snake_case, enabling compatibility with more backend implementations
+
 ## 0.2.0 - 2025-12-03
 
 ### Added
