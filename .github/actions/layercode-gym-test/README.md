@@ -313,6 +313,14 @@ layercode-gym-results-<run-id>/
 └── ...
 ```
 
+**`judge_evaluation.json`** (when judge enabled) contains:
+- `schema_version`: Format version for compatibility
+- `evaluated_at`: ISO timestamp of evaluation
+- `model`: Model used for judging (e.g., `openai:gpt-5-mini`)
+- `criteria`: Original criteria definitions
+- `judgment`: Raw model output with `criteria_results`, `overall_pass`, and `reasoning`
+- `results_summary`: Combined view with criteria text and pass/fail status
+
 **Access artifacts**: GitHub Actions → Workflow run → Artifacts section
 
 ## Best Practices

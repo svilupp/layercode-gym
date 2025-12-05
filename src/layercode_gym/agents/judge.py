@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 import httpx
 import textprompts
@@ -290,6 +291,18 @@ class CriteriaJudge:
             for cr in output.criteria_results
         ]
 
+    def _build_base_doc(self) -> dict[str, Any]:
+        """Build the base document structure shared by save methods."""
+        return {
+            "schema_version": "1.0",
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+            "model": self.model,
+            "criteria": [
+                {"id": i + 1, "criterion": text} for i, text in enumerate(self.criteria)
+            ],
+            "additional_context": self.additional_context,
+        }
+
     def save_results(
         self,
         output: JudgeOutput,
@@ -297,6 +310,15 @@ class CriteriaJudge:
         output_root: Path,
     ) -> Path:
         """Save judge results to JSON file in the conversation folder.
+
+        Saves a comprehensive judgment document including:
+        - Schema version for future compatibility
+        - Timestamp of evaluation
+        - Model used for judging
+        - Original criteria definitions
+        - Additional context provided to the judge
+        - Raw judgment output from the model
+        - Combined results summary for easy reading
 
         Args:
             output: The JudgeOutput from evaluate()
@@ -309,26 +331,51 @@ class CriteriaJudge:
         conversation_dir = output_root / conversation_id
         results_file = conversation_dir / "judge_evaluation.json"
 
-        # Build results with original criteria text for clarity
-        criteria_with_text = []
-        for i, criterion_text in enumerate(self.criteria):
-            result = next(
-                (cr for cr in output.criteria_results if cr.criterion_id == i + 1),
-                None,
-            )
-            criteria_with_text.append(
-                {
-                    "id": i + 1,
-                    "criterion": criterion_text,
-                    "passed": result.passed if result else False,
-                }
-            )
+        results_by_id = {cr.criterion_id: cr.passed for cr in output.criteria_results}
 
-        results = {
-            "criteria": criteria_with_text,
+        doc = self._build_base_doc()
+        doc["judgment"] = {
+            "criteria_results": [
+                {"criterion_id": cr.criterion_id, "passed": cr.passed}
+                for cr in output.criteria_results
+            ],
             "overall_pass": output.overall_pass,
             "reasoning": output.reasoning,
         }
+        doc["results_summary"] = [
+            {"id": i + 1, "criterion": text, "passed": results_by_id.get(i + 1, False)}
+            for i, text in enumerate(self.criteria)
+        ]
 
-        results_file.write_text(json.dumps(results, indent=2))
+        results_file.write_text(json.dumps(doc, indent=2))
+        return results_file
+
+    def save_error(
+        self,
+        error: str,
+        conversation_id: str,
+        output_root: Path,
+    ) -> Path:
+        """Save judge error state to JSON file when evaluation fails.
+
+        This preserves the criteria and error information for debugging,
+        even when the judge evaluation itself fails.
+
+        Args:
+            error: The error message (should be sanitized of secrets)
+            conversation_id: Conversation ID for folder lookup
+            output_root: Root directory for conversation outputs
+
+        Returns:
+            Path to the saved error file
+        """
+        conversation_dir = output_root / conversation_id
+        results_file = conversation_dir / "judge_evaluation.json"
+
+        doc = self._build_base_doc()
+        doc["error"] = error
+        doc["judgment"] = None
+        doc["results_summary"] = None
+
+        results_file.write_text(json.dumps(doc, indent=2))
         return results_file

@@ -344,6 +344,16 @@ Expected format (YAML):
             result.passed = False
             result.judge_feedback = f"Judge error: {safe_error}"
 
+            # Save error state to judgment file for debugging
+            # This ensures we always have a judge_evaluation.json even on failure
+            try:
+                judge.save_error(
+                    safe_error, result.conversation_id, settings.output_root
+                )
+            except Exception:
+                # If save_error also fails, just log it - don't mask the original error
+                print("   Warning: Could not save error state to file")
+
         return result
 
     async def run_all_conversations(self) -> list[TestResult]:
@@ -510,11 +520,11 @@ Expected format (YAML):
         if self.authorize_path != "/api/authorize":
             print(f"  • Authorize Path: {self.authorize_path}")
         if self.custom_metadata:
-            print(f"  • Custom Metadata: (configured)")
+            print("  • Custom Metadata: (configured)")
         if self.custom_headers:
-            print(f"  • Custom Headers: (configured)")
+            print("  • Custom Headers: (configured)")
         if self.authorization_headers:
-            print(f"  • Authorization Headers: (configured)")
+            print("  • Authorization Headers: (configured)")
         print(f"  • Judge Enabled: {self.judge_enabled}")
         if self.judge_enabled:
             print(f"  • Fail on Judge Failure: {self.fail_on_judge_failure}")

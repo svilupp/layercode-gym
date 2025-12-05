@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.4.0 - 2025-12-05
+
+### Added
+- Enhanced `judge_evaluation.json` with full metadata: model, timestamp, criteria, additional context, and raw judgment output
+
 ## 0.3.0 - 2025-12-04
 
 ### Added
