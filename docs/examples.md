@@ -219,15 +219,33 @@ After the conversation, check `conversations/<id>/judge_evaluation.json`:
 
 ```json
 {
+  "schema_version": "1.0",
+  "evaluated_at": "2025-12-05T13:15:41.124793+00:00",
+  "model": "openai:gpt-5-mini",
   "criteria": [
+    {"id": 1, "criterion": "Did the agent understand the user's problem?"},
+    {"id": 2, "criterion": "Did the agent provide clear next steps?"},
+    {"id": 3, "criterion": "Was the agent polite and professional?"}
+  ],
+  "additional_context": null,
+  "judgment": {
+    "criteria_results": [
+      {"criterion_id": 1, "passed": true},
+      {"criterion_id": 2, "passed": true},
+      {"criterion_id": 3, "passed": true}
+    ],
+    "overall_pass": true,
+    "reasoning": "The agent correctly identified the issue and provided helpful guidance..."
+  },
+  "results_summary": [
     {"id": 1, "criterion": "Did the agent understand the user's problem?", "passed": true},
     {"id": 2, "criterion": "Did the agent provide clear next steps?", "passed": true},
     {"id": 3, "criterion": "Was the agent polite and professional?", "passed": true}
-  ],
-  "overall_pass": true,
-  "reasoning": "The agent correctly identified the issue and provided helpful guidance..."
+  ]
 }
 ```
+
+The file includes: `schema_version`, `evaluated_at` timestamp, `model` used, original `criteria`, optional `additional_context`, raw `judgment` output, and `results_summary` for easy reading.
 
 **Best practices:**
 

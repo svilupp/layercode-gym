@@ -253,19 +253,37 @@ client = LayercodeClient(
 )
 ```
 
-Results are saved to `conversations/<id>/judge_evaluation.json`:
+Results are saved to `conversations/<id>/judge_evaluation.json` with full metadata:
 
 ```json
 {
+  "schema_version": "1.0",
+  "evaluated_at": "2025-12-05T13:15:41.124793+00:00",
+  "model": "openai:gpt-5-mini",
   "criteria": [
+    {"id": 1, "criterion": "Did the agent answer all user questions?"},
+    {"id": 2, "criterion": "Was the agent polite and professional?"},
+    {"id": 3, "criterion": "Did the conversation flow naturally?"}
+  ],
+  "additional_context": "Optional context about the scenario",
+  "judgment": {
+    "criteria_results": [
+      {"criterion_id": 1, "passed": true},
+      {"criterion_id": 2, "passed": true},
+      {"criterion_id": 3, "passed": false}
+    ],
+    "overall_pass": false,
+    "reasoning": "The agent answered questions well but responses felt scripted..."
+  },
+  "results_summary": [
     {"id": 1, "criterion": "Did the agent answer all user questions?", "passed": true},
     {"id": 2, "criterion": "Was the agent polite and professional?", "passed": true},
     {"id": 3, "criterion": "Did the conversation flow naturally?", "passed": false}
-  ],
-  "overall_pass": false,
-  "reasoning": "The agent answered questions well but responses felt scripted..."
+  ]
 }
 ```
+
+The file includes the model used, timestamp, original criteria, and both raw judgment output and a combined summary for easy reading.
 
 ## Conversation Outputs
 

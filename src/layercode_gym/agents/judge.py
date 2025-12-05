@@ -298,6 +298,15 @@ class CriteriaJudge:
     ) -> Path:
         """Save judge results to JSON file in the conversation folder.
 
+        Saves a comprehensive judgment document including:
+        - Schema version for future compatibility
+        - Timestamp of evaluation
+        - Model used for judging
+        - Original criteria definitions
+        - Additional context provided to the judge
+        - Raw judgment output from the model
+        - Combined results summary for easy reading
+
         Args:
             output: The JudgeOutput from evaluate()
             conversation_id: Conversation ID for folder lookup
@@ -306,17 +315,19 @@ class CriteriaJudge:
         Returns:
             Path to the saved results file
         """
+        from datetime import datetime, timezone
+
         conversation_dir = output_root / conversation_id
         results_file = conversation_dir / "judge_evaluation.json"
 
-        # Build results with original criteria text for clarity
-        criteria_with_text = []
+        # Build combined results summary with original criteria text
+        results_summary = []
         for i, criterion_text in enumerate(self.criteria):
             result = next(
                 (cr for cr in output.criteria_results if cr.criterion_id == i + 1),
                 None,
             )
-            criteria_with_text.append(
+            results_summary.append(
                 {
                     "id": i + 1,
                     "criterion": criterion_text,
@@ -324,11 +335,73 @@ class CriteriaJudge:
                 }
             )
 
-        results = {
-            "criteria": criteria_with_text,
-            "overall_pass": output.overall_pass,
-            "reasoning": output.reasoning,
+        # Build comprehensive judgment document
+        judgment_doc = {
+            "schema_version": "1.0",
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+            "model": self.model,
+            # Input: criteria definitions
+            "criteria": [
+                {"id": i + 1, "criterion": text} for i, text in enumerate(self.criteria)
+            ],
+            # Input: optional additional context
+            "additional_context": self.additional_context,
+            # Output: raw judgment from model
+            "judgment": {
+                "criteria_results": [
+                    {"criterion_id": cr.criterion_id, "passed": cr.passed}
+                    for cr in output.criteria_results
+                ],
+                "overall_pass": output.overall_pass,
+                "reasoning": output.reasoning,
+            },
+            # Combined view for easy reading
+            "results_summary": results_summary,
         }
 
-        results_file.write_text(json.dumps(results, indent=2))
+        results_file.write_text(json.dumps(judgment_doc, indent=2))
+        return results_file
+
+    def save_error(
+        self,
+        error: str,
+        conversation_id: str,
+        output_root: Path,
+    ) -> Path:
+        """Save judge error state to JSON file when evaluation fails.
+
+        This preserves the criteria and error information for debugging,
+        even when the judge evaluation itself fails.
+
+        Args:
+            error: The error message (should be sanitized of secrets)
+            conversation_id: Conversation ID for folder lookup
+            output_root: Root directory for conversation outputs
+
+        Returns:
+            Path to the saved error file
+        """
+        from datetime import datetime, timezone
+
+        conversation_dir = output_root / conversation_id
+        results_file = conversation_dir / "judge_evaluation.json"
+
+        # Build error document with available information
+        error_doc = {
+            "schema_version": "1.0",
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+            "model": self.model,
+            # Input: criteria definitions
+            "criteria": [
+                {"id": i + 1, "criterion": text} for i, text in enumerate(self.criteria)
+            ],
+            # Input: optional additional context
+            "additional_context": self.additional_context,
+            # Error state
+            "error": error,
+            "judgment": None,
+            "results_summary": None,
+        }
+
+        results_file.write_text(json.dumps(error_doc, indent=2))
         return results_file

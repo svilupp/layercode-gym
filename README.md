@@ -209,7 +209,23 @@ client = LayercodeClient(
 )
 ```
 
-Results saved to `conversations/<id>/judge_evaluation.json` with reasoning and per-criterion pass/fail.
+Results saved to `conversations/<id>/judge_evaluation.json` with full evaluation metadata:
+
+```json
+{
+  "schema_version": "1.0",
+  "evaluated_at": "2025-12-05T13:15:41.124793+00:00",
+  "model": "openai:gpt-5-mini",
+  "criteria": [{"id": 1, "criterion": "Did the agent answer all user questions?"}],
+  "additional_context": "Optional context provided to the judge",
+  "judgment": {
+    "criteria_results": [{"criterion_id": 1, "passed": true}],
+    "overall_pass": true,
+    "reasoning": "The agent answered all questions clearly..."
+  },
+  "results_summary": [{"id": 1, "criterion": "...", "passed": true}]
+}
+```
 
 ## Batch Testing
 
