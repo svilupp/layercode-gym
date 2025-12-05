@@ -233,15 +233,20 @@ class LayercodeClient:
             data = response.json()
             logger.debug("Authorization response: %s", data)
 
-        session = data.get("client_session_key")
+        # Support both snake_case and camelCase response keys for compatibility
+        session = data.get("client_session_key") or data.get("clientSessionKey")
         conv_id = (
-            data.get("conversation_id") if conversation_id is None else conversation_id
+            data.get("conversation_id") or data.get("conversationId")
+            if conversation_id is None
+            else conversation_id
         )
         if not isinstance(session, str) or not session:
-            msg = "Authorization response missing client_session_key"
+            msg = (
+                "Authorization response missing client_session_key or clientSessionKey"
+            )
             raise RuntimeError(msg)
         if not isinstance(conv_id, str) or not conv_id:
-            msg = "Authorization response missing conversation_id"
+            msg = "Authorization response missing conversation_id or conversationId"
             raise RuntimeError(msg)
         return AuthorizationResult(conversation_id=conv_id, client_session_key=session)
 
@@ -289,14 +294,20 @@ class LayercodeClient:
                 case "response.audio":
                     audio_event = cast(ResponseAudioEvent, payload)
                     if self._assistant_state.turn_id is None:
-                        self._assistant_state.reset(audio_event["turn_id"])
+                        # turn_id is optional - generate fallback if not present
+                        turn_id = (
+                            audio_event.get("turn_id") or f"turn_{id(audio_event)}"
+                        )
+                        self._assistant_state.reset(turn_id)
                     self._assistant_state.append_audio(audio_event["content"])
                     # Reset idle timer every time we receive audio
                     self._schedule_assistant_idle_check()
                 case "response.text":
                     text_event = cast(ResponseTextEvent, payload)
                     if self._assistant_state.turn_id is None:
-                        self._assistant_state.reset(text_event["turn_id"])
+                        # turn_id is optional - generate fallback if not present
+                        turn_id = text_event.get("turn_id") or f"turn_{id(text_event)}"
+                        self._assistant_state.reset(turn_id)
                     self._assistant_state.append_text(text_event["content"])
                 case "user.transcript.interim_delta":
                     interim_event = cast(UserTranscriptInterimEvent, payload)
@@ -309,9 +320,11 @@ class LayercodeClient:
                     self._latest_user_text = transcript_event["content"]
                 case "response.data":
                     data_event = cast(ResponseDataEvent, payload)
-                    storage.store_data_payload(
-                        data_event["content"], name=data_event["turn_id"]
+                    # turn_id is optional - use current turn_id from state, or fallback
+                    turn_id = data_event.get(
+                        "turn_id", self._assistant_state.turn_id or "data"
                     )
+                    storage.store_data_payload(data_event["content"], name=turn_id)
                     # Accumulate data for processing by data_processor
                     self._accumulated_data.append(data_event["content"])
                 case _:
@@ -329,7 +342,9 @@ class LayercodeClient:
         logger.info("Turn start: role=%s", role)
         if role == "assistant":
             # Don't reset state here - turn_id will come in response.audio/response.text
-            # Just record that we're starting an assistant turn
+            # Schedule idle timer in case no content arrives (e.g., resumed conversation
+            # where agent doesn't send a welcome message)
+            self._schedule_assistant_idle_check()
             return
 
         # User turn starting - this is triggered by the server
@@ -668,7 +683,15 @@ class LayercodeClient:
         """Schedule a timer to trigger user turn after assistant idle timeout."""
         self._cancel_assistant_idle_timer()
         if self.assistant_idle_timeout <= 0:
+            logger.debug(
+                "Idle timeout disabled (timeout=%s)", self.assistant_idle_timeout
+            )
             return
+
+        logger.info(
+            "Scheduling assistant idle timer for %s seconds",
+            self.assistant_idle_timeout,
+        )
 
         async def idle_timer() -> None:
             try:
