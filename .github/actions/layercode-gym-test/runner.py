@@ -347,7 +347,9 @@ Expected format (YAML):
             # Save error state to judgment file for debugging
             # This ensures we always have a judge_evaluation.json even on failure
             try:
-                judge.save_error(safe_error, result.conversation_id, settings.output_root)
+                judge.save_error(
+                    safe_error, result.conversation_id, settings.output_root
+                )
             except Exception:
                 # If save_error also fails, just log it - don't mask the original error
                 print(f"   Warning: Could not save error state to file")

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 import httpx
 import textprompts
@@ -290,6 +291,18 @@ class CriteriaJudge:
             for cr in output.criteria_results
         ]
 
+    def _build_base_doc(self) -> dict[str, Any]:
+        """Build the base document structure shared by save methods."""
+        return {
+            "schema_version": "1.0",
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+            "model": self.model,
+            "criteria": [
+                {"id": i + 1, "criterion": text} for i, text in enumerate(self.criteria)
+            ],
+            "additional_context": self.additional_context,
+        }
+
     def save_results(
         self,
         output: JudgeOutput,
@@ -315,51 +328,26 @@ class CriteriaJudge:
         Returns:
             Path to the saved results file
         """
-        from datetime import datetime, timezone
-
         conversation_dir = output_root / conversation_id
         results_file = conversation_dir / "judge_evaluation.json"
 
-        # Build combined results summary with original criteria text
-        results_summary = []
-        for i, criterion_text in enumerate(self.criteria):
-            result = next(
-                (cr for cr in output.criteria_results if cr.criterion_id == i + 1),
-                None,
-            )
-            results_summary.append(
-                {
-                    "id": i + 1,
-                    "criterion": criterion_text,
-                    "passed": result.passed if result else False,
-                }
-            )
+        results_by_id = {cr.criterion_id: cr.passed for cr in output.criteria_results}
 
-        # Build comprehensive judgment document
-        judgment_doc = {
-            "schema_version": "1.0",
-            "evaluated_at": datetime.now(timezone.utc).isoformat(),
-            "model": self.model,
-            # Input: criteria definitions
-            "criteria": [
-                {"id": i + 1, "criterion": text} for i, text in enumerate(self.criteria)
+        doc = self._build_base_doc()
+        doc["judgment"] = {
+            "criteria_results": [
+                {"criterion_id": cr.criterion_id, "passed": cr.passed}
+                for cr in output.criteria_results
             ],
-            # Input: optional additional context
-            "additional_context": self.additional_context,
-            # Output: raw judgment from model
-            "judgment": {
-                "criteria_results": [
-                    {"criterion_id": cr.criterion_id, "passed": cr.passed}
-                    for cr in output.criteria_results
-                ],
-                "overall_pass": output.overall_pass,
-                "reasoning": output.reasoning,
-            },
-            # Combined view for easy reading
-            "results_summary": results_summary,
+            "overall_pass": output.overall_pass,
+            "reasoning": output.reasoning,
         }
+        doc["results_summary"] = [
+            {"id": i + 1, "criterion": text, "passed": results_by_id.get(i + 1, False)}
+            for i, text in enumerate(self.criteria)
+        ]
 
-        results_file.write_text(json.dumps(judgment_doc, indent=2))
+        results_file.write_text(json.dumps(doc, indent=2))
         return results_file
 
     def save_error(
@@ -381,27 +369,13 @@ class CriteriaJudge:
         Returns:
             Path to the saved error file
         """
-        from datetime import datetime, timezone
-
         conversation_dir = output_root / conversation_id
         results_file = conversation_dir / "judge_evaluation.json"
 
-        # Build error document with available information
-        error_doc = {
-            "schema_version": "1.0",
-            "evaluated_at": datetime.now(timezone.utc).isoformat(),
-            "model": self.model,
-            # Input: criteria definitions
-            "criteria": [
-                {"id": i + 1, "criterion": text} for i, text in enumerate(self.criteria)
-            ],
-            # Input: optional additional context
-            "additional_context": self.additional_context,
-            # Error state
-            "error": error,
-            "judgment": None,
-            "results_summary": None,
-        }
+        doc = self._build_base_doc()
+        doc["error"] = error
+        doc["judgment"] = None
+        doc["results_summary"] = None
 
-        results_file.write_text(json.dumps(error_doc, indent=2))
+        results_file.write_text(json.dumps(doc, indent=2))
         return results_file
