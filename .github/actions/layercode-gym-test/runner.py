@@ -352,7 +352,7 @@ Expected format (YAML):
                 )
             except Exception:
                 # If save_error also fails, just log it - don't mask the original error
-                print(f"   Warning: Could not save error state to file")
+                print("   Warning: Could not save error state to file")
 
         return result
 
@@ -520,11 +520,11 @@ Expected format (YAML):
         if self.authorize_path != "/api/authorize":
             print(f"  • Authorize Path: {self.authorize_path}")
         if self.custom_metadata:
-            print(f"  • Custom Metadata: (configured)")
+            print("  • Custom Metadata: (configured)")
         if self.custom_headers:
-            print(f"  • Custom Headers: (configured)")
+            print("  • Custom Headers: (configured)")
         if self.authorization_headers:
-            print(f"  • Authorization Headers: (configured)")
+            print("  • Authorization Headers: (configured)")
         print(f"  • Judge Enabled: {self.judge_enabled}")
         if self.judge_enabled:
             print(f"  • Fail on Judge Failure: {self.fail_on_judge_failure}")
