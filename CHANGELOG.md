@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.5.1 - 2025-12-12
+
+### Fixed
+- `tunnel` command now verifies webhook updates actually persist instead of assuming success
+
 ## 0.5.0 - 2025-12-11
 
 ### Added

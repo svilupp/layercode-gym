@@ -253,8 +253,27 @@ class CloudflareTunnelLauncher:
 
             # Update to tunnel URL
             print(f"Updating webhook to: {webhook_url}", file=sys.stderr)
-            update_agent(self.agent_id, self.api_key, {"webhook_url": webhook_url})
-            print("Webhook updated successfully", file=sys.stderr)
+            updated = update_agent(
+                self.agent_id, self.api_key, {"webhook_url": webhook_url}
+            )
+
+            # Verify the update actually took effect
+            if updated.webhook_url == webhook_url:
+                print("Webhook updated successfully", file=sys.stderr)
+            else:
+                print(
+                    f"Warning: API returned different webhook: {updated.webhook_url}",
+                    file=sys.stderr,
+                )
+                # Double-check by fetching again
+                verified = get_agent(self.agent_id, self.api_key)
+                if verified.webhook_url == webhook_url:
+                    print("Verified: Webhook is correctly set", file=sys.stderr)
+                else:
+                    print(
+                        f"Error: Webhook update failed. Current value: {verified.webhook_url}",
+                        file=sys.stderr,
+                    )
 
         except Exception as e:
             print(
