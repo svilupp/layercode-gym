@@ -19,8 +19,8 @@ uv sync --group dev
 uv run ruff check src/
 uv run ruff format --check src/
 
-# Run type checking (strict mode enforced)
-uv run mypy src/layercode_gym
+# Run type checking
+uv run ty check src/ tests/
 
 # Test package imports
 uv run python -c "from layercode_gym import LayercodeClient, UserSimulator, Persona, Settings"

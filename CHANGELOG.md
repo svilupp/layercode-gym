@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.5.0 - 2025-12-11
+
+### Added
+- `tunnel` CLI command to start a Cloudflare tunnel with optional auto-webhook update (see the docs)
+- `--request-timeout` CLI flag to configure authorization request timeout (default: 10s)
+
 ## 0.4.0 - 2025-12-05
 
 ### Added

@@ -35,8 +35,8 @@ jobs:
       - name: Run ruff formatting check
         run: uv run ruff format --check src/
 
-      - name: Run mypy type checking
-        run: uv run mypy src/layercode_gym
+      - name: Run ty type checking
+        run: uv run ty check src/ tests/
 
   test-imports:
     name: Test Package Imports

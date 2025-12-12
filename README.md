@@ -72,6 +72,39 @@ uvx layercode-gym api-agents get --agent-id ag-123
 uvx layercode-gym api-agents update --agent-id ag-123 --webhook-url https://pr-backend.com/webhook
 ```
 
+### Cloudflare Tunnel (for Local Development)
+
+Quickly expose your local server to the internet with a Cloudflare tunnel. This is useful for testing webhooks without deploying your backend.
+
+**Requires:** [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/) to be installed.
+
+```bash
+# Basic tunnel - displays URL to copy manually
+uvx layercode-gym tunnel --port 8000
+
+# Or specify a full URL directly
+uvx layercode-gym tunnel --url http://localhost:8000
+
+# Auto-update agent webhook (recommended for development)
+uvx layercode-gym tunnel --port 8000 --unsafe-update-webhook
+
+# Explicit agent ID (overrides LAYERCODE_AGENT_ID env var)
+uvx layercode-gym tunnel --port 8000 --agent-id ag-123456 --unsafe-update-webhook
+```
+
+When using `--unsafe-update-webhook`:
+1. The tunnel starts and gets a public URL (e.g., `https://random-words.trycloudflare.com`)
+2. Your agent's webhook URL is automatically updated to the tunnel URL
+3. When you stop the tunnel (Ctrl+C), the original webhook URL is restored
+
+**Environment Variables:**
+- `LAYERCODE_AGENT_ID` - Default agent ID for webhook updates
+- `LAYERCODE_API_KEY` - API key for webhook updates (required for `--unsafe-update-webhook`)
+
+> **Warning:** `--unsafe-update-webhook` modifies your agent's configuration. Only use with development/test agents, not production.
+
+See [tunnel documentation](docs/tunnel.md) for more details.
+
 ### Python API
 
 ```bash

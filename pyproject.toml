@@ -1,6 +1,6 @@
 [project]
 name = "layercode-gym"
-version = "0.4.0"
+version = "0.5.0"
 description = "Utilities for simulating LayerCode voice agent conversations"
 readme = "README.md"
 license = "MIT"
@@ -53,6 +53,9 @@ ignore_missing_imports = true
 dev = [
     "mypy>=1.18.2",
     "ruff>=0.8.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ty>=0.0.1a33",
 ]
 docs = [
     "mkdocs>=1.6.0",
@@ -64,3 +67,8 @@ docs = [
 [tool.ruff]
 # Allow `from __future__ import annotations` before docstrings
 lint.ignore = ["E402"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"

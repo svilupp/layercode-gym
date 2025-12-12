@@ -75,6 +75,7 @@ nav:
   - Advanced Usage: advanced.md
   - GitHub Actions: github-action.md
   - API Agents CLI: api-agents.md
+  - Cloudflare Tunnel: tunnel.md
   - Roadmap: roadmap.md
 
 extra:
