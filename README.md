@@ -93,13 +93,17 @@ uvx layercode-gym tunnel --port 8000 --agent-id ag-123456 --unsafe-update-webhoo
 ```
 
 When using `--unsafe-update-webhook`:
-1. The tunnel starts and gets a public URL (e.g., `https://random-words.trycloudflare.com`)
-2. Your agent's webhook URL is automatically updated to the tunnel URL
-3. When you stop the tunnel (Ctrl+C), the original webhook URL is restored
+1. The tunnel starts and gets a base URL (e.g., `https://random-words.trycloudflare.com`)
+2. The agent path is appended to create the full webhook URL (e.g., `https://random-words.trycloudflare.com/api/agent`)
+3. Your agent's webhook URL is automatically updated
+4. When you stop the tunnel (Ctrl+C), the original webhook URL is restored
+
+**Agent path resolution:** `--agent-path` flag → `LAYERCODE_AGENT_PATH` env var → path from existing webhook → default `/api/agent`
 
 **Environment Variables:**
 - `LAYERCODE_AGENT_ID` - Default agent ID for webhook updates
 - `LAYERCODE_API_KEY` - API key for webhook updates (required for `--unsafe-update-webhook`)
+- `LAYERCODE_AGENT_PATH` - Path to append to tunnel URL (default: extracted from existing webhook, or `/api/agent`)
 
 > **Warning:** `--unsafe-update-webhook` modifies your agent's configuration. Only use with development/test agents, not production.
 

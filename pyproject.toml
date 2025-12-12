@@ -1,6 +1,6 @@
 [project]
 name = "layercode-gym"
-version = "0.5.1"
+version = "0.6.0"
 description = "Utilities for simulating LayerCode voice agent conversations"
 readme = "README.md"
 license = "MIT"

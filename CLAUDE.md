@@ -88,3 +88,4 @@ Optional:
 - `LAYERCODE_CUSTOM_METADATA`: JSON object with custom metadata for authorization (e.g., `'{"tenant_id": "t_42"}'`)
 - `LAYERCODE_CUSTOM_HEADERS`: JSON object with custom headers for outbound webhooks (e.g., `'{"x-tenant-id": "t_42"}'`)
 - `LAYERCODE_AUTH_HEADERS`: JSON object with headers to send TO the authorization endpoint (e.g., `'{"Authorization": "Bearer token"}'`)
+- `LAYERCODE_AGENT_PATH`: Path to append to tunnel URL for webhook (default: `/api/agent`). Falls back to path from existing webhook if available.
