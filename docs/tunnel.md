@@ -101,6 +101,7 @@ layercode-gym tunnel (--port PORT | --url URL) [OPTIONS]
 | `--unsafe-update-webhook` | Automatically update agent webhook to tunnel URL |
 | `--agent-id ID` | LayerCode agent ID to update (default: `LAYERCODE_AGENT_ID` env var) |
 | `--api-key KEY` | LayerCode API key (default: `LAYERCODE_API_KEY` env var) |
+| `--agent-path PATH` | Path to append to tunnel URL (see [Webhook URL Composition](#webhook-url-composition)) |
 
 ### Tunnel Configuration
 
@@ -174,6 +175,48 @@ layercode-gym tunnel --port 8000 \
    - Restores previous webhook URL
    - Terminates cloudflared process
 
+### Webhook URL Composition
+
+When `--unsafe-update-webhook` is enabled, the final webhook URL is composed from two parts:
+
+```
+Full Webhook URL = Tunnel Base URL + Agent Path
+```
+
+**Example:**
+```
+Tunnel Base URL: https://random-words.trycloudflare.com
+Agent Path:      /api/agent
+Final URL:       https://random-words.trycloudflare.com/api/agent
+```
+
+**Agent Path Resolution Priority:**
+
+The agent path is resolved in this order (first match wins):
+
+1. **Explicit `--agent-path`** - If you provide `--agent-path /custom/endpoint`, it's used directly
+2. **Existing webhook path** - If no explicit path, the path is extracted from your agent's current webhook URL
+3. **Default `/api/agent`** - If no other source available
+
+This means if your agent's webhook is currently `https://example.com/api/voice-handler`, the tunnel will automatically use `/api/voice-handler` as the path—no configuration needed.
+
+**Examples:**
+
+```bash
+# Use explicit path
+layercode-gym tunnel --port 8000 --unsafe-update-webhook --agent-path /webhooks/voice
+# Result: https://random.trycloudflare.com/webhooks/voice
+
+# Use path from existing webhook (automatic)
+# If current webhook is https://example.com/api/voice-agent
+layercode-gym tunnel --port 8000 --unsafe-update-webhook
+# Result: https://random.trycloudflare.com/api/voice-agent
+
+# Use default when no existing webhook
+layercode-gym tunnel --port 8000 --unsafe-update-webhook
+# Result: https://random.trycloudflare.com/api/agent
+```
+
 ### Webhook Restore Logic
 
 The restore is **intelligent** - it only restores if:
@@ -192,6 +235,7 @@ This prevents accidentally overwriting webhook changes made during your session.
 |----------|-------------|----------|
 | `LAYERCODE_AGENT_ID` | Default agent ID | `--unsafe-update-webhook` |
 | `LAYERCODE_API_KEY` | API key for LayerCode API | `--unsafe-update-webhook` |
+| `LAYERCODE_AGENT_PATH` | Path to append to tunnel URL (e.g., `/api/agent`) | `--unsafe-update-webhook` |
 
 ---
 

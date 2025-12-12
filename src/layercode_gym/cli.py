@@ -463,6 +463,15 @@ def create_tunnel_parser(
             "LayerCode API key for webhook updates. Default: LAYERCODE_API_KEY env var"
         ),
     )
+    webhook_group.add_argument(
+        "--agent-path",
+        metavar="PATH",
+        help=(
+            "Path to append to tunnel URL for webhook (e.g., /api/agent). "
+            "Falls back to: LAYERCODE_AGENT_PATH env var, path from existing webhook, "
+            "or '/api/agent'"
+        ),
+    )
 
     # Tunnel configuration
     config_group = tunnel_parser.add_argument_group(
@@ -871,9 +880,10 @@ async def run_tunnel(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    # Resolve agent_id and api_key from args or environment
+    # Resolve agent_id, api_key, and agent_path from args or environment
     agent_id = args.agent_id or os.environ.get("LAYERCODE_AGENT_ID")
     api_key = args.api_key or os.environ.get("LAYERCODE_API_KEY")
+    agent_path = args.agent_path or os.environ.get("LAYERCODE_AGENT_PATH")
 
     # Validate requirements for webhook update
     if args.unsafe_update_webhook:
@@ -900,6 +910,7 @@ async def run_tunnel(args: argparse.Namespace) -> None:
         agent_id=agent_id,
         api_key=api_key,
         update_webhook=args.unsafe_update_webhook,
+        agent_path=agent_path,
     )
 
     try:

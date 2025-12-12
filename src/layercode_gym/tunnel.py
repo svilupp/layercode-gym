@@ -24,6 +24,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from layercode_gym.api_agents_utils import get_agent, update_agent
 from layercode_gym.logging_utils import sanitize_error
@@ -58,6 +59,7 @@ class CloudflareTunnelLauncher:
         agent_id: str | None = None,
         api_key: str | None = None,
         update_webhook: bool = False,
+        agent_path: str | None = None,
     ) -> None:
         """Initialize the tunnel launcher.
 
@@ -68,6 +70,7 @@ class CloudflareTunnelLauncher:
             agent_id: LayerCode agent ID for webhook updates
             api_key: LayerCode API key for webhook updates
             update_webhook: Whether to auto-update agent webhook
+            agent_path: Path to append to tunnel URL for webhook (e.g., /api/agent)
         """
         if url:
             self.target_url = url
@@ -79,6 +82,7 @@ class CloudflareTunnelLauncher:
         self.agent_id = agent_id
         self.api_key = api_key
         self.update_webhook = update_webhook
+        self._agent_path = agent_path
 
         self._process: asyncio.subprocess.Process | None = None
         self._tunnel_url: str | None = None
@@ -225,8 +229,43 @@ class CloudflareTunnelLauncher:
                 self._log_file_handle.write(f"[{name}] {decoded}")
                 self._log_file_handle.flush()
 
-    async def _update_webhook(self, webhook_url: str) -> None:
-        """Update agent webhook and save previous value."""
+    def _resolve_agent_path(self) -> str:
+        """Resolve agent path with fallback logic.
+
+        Priority:
+        1. Explicitly provided agent_path (from CLI or ENV)
+        2. Path extracted from existing webhook URL
+        3. Default: /api/agent
+
+        Returns:
+            The resolved agent path to append to tunnel URL
+        """
+        # 1. Use explicitly provided path
+        if self._agent_path:
+            print(f"Using provided agent path: {self._agent_path}", file=sys.stderr)
+            return self._agent_path
+
+        # 2. Try to extract from previous webhook URL
+        if self._previous_webhook_url:
+            parsed = urlparse(self._previous_webhook_url)
+            if parsed.path:
+                print(
+                    f"Using agent path from existing webhook: {parsed.path}",
+                    file=sys.stderr,
+                )
+                return parsed.path
+
+        # 3. Default fallback
+        default_path = "/api/agent"
+        print(f"No agent path provided, using default: {default_path}", file=sys.stderr)
+        return default_path
+
+    async def _update_webhook(self, tunnel_url: str) -> None:
+        """Update agent webhook and save previous value.
+
+        Args:
+            tunnel_url: The base tunnel URL (e.g., https://random.trycloudflare.com)
+        """
         if not self.agent_id or not self.api_key:
             print(
                 "Warning: --unsafe-update-webhook requires --agent-id and --api-key",
@@ -251,14 +290,20 @@ class CloudflareTunnelLauncher:
             else:
                 print("Agent has no previous webhook URL", file=sys.stderr)
 
-            # Update to tunnel URL
-            print(f"Updating webhook to: {webhook_url}", file=sys.stderr)
+            # Resolve agent path (using provided path, existing webhook path, or default)
+            agent_path = self._resolve_agent_path()
+
+            # Compose full webhook URL
+            full_webhook_url = tunnel_url.rstrip("/") + agent_path
+
+            # Update to full webhook URL
+            print(f"Updating webhook to: {full_webhook_url}", file=sys.stderr)
             updated = update_agent(
-                self.agent_id, self.api_key, {"webhook_url": webhook_url}
+                self.agent_id, self.api_key, {"webhook_url": full_webhook_url}
             )
 
             # Verify the update actually took effect
-            if updated.webhook_url == webhook_url:
+            if updated.webhook_url == full_webhook_url:
                 print("Webhook updated successfully", file=sys.stderr)
             else:
                 print(
@@ -267,7 +312,7 @@ class CloudflareTunnelLauncher:
                 )
                 # Double-check by fetching again
                 verified = get_agent(self.agent_id, self.api_key)
-                if verified.webhook_url == webhook_url:
+                if verified.webhook_url == full_webhook_url:
                     print("Verified: Webhook is correctly set", file=sys.stderr)
                 else:
                     print(

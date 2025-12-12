@@ -117,6 +117,21 @@ class TestCloudflareTunnelLauncherInit:
         assert launcher.api_key == "test-api-key"
         assert launcher.update_webhook is True
 
+    def test_initialization_with_agent_path(self) -> None:
+        """Should accept agent_path parameter."""
+        launcher = CloudflareTunnelLauncher(
+            port=8000,
+            agent_path="/custom/webhook/path",
+        )
+
+        assert launcher._agent_path == "/custom/webhook/path"
+
+    def test_initialization_without_agent_path(self) -> None:
+        """Should default agent_path to None."""
+        launcher = CloudflareTunnelLauncher(port=8000)
+
+        assert launcher._agent_path is None
+
     def test_initialization_requires_url_or_port(self) -> None:
         """Should raise ValueError if neither url nor port provided."""
         import pytest
@@ -152,6 +167,69 @@ class TestTunnelUrlProperty:
         launcher._tunnel_url = "https://test.trycloudflare.com"
 
         assert launcher.tunnel_url == "https://test.trycloudflare.com"
+
+
+# =============================================================================
+# Tests for _resolve_agent_path() method
+# =============================================================================
+
+
+class TestResolveAgentPath:
+    """Tests for the _resolve_agent_path method."""
+
+    def test_resolve_agent_path_with_explicit_path(self) -> None:
+        """Should use explicitly provided agent_path."""
+        launcher = CloudflareTunnelLauncher(
+            port=8000,
+            agent_path="/custom/api/endpoint",
+        )
+
+        path = launcher._resolve_agent_path()
+        assert path == "/custom/api/endpoint"
+
+    def test_resolve_agent_path_from_previous_webhook(self) -> None:
+        """Should extract path from previous webhook URL when no explicit path."""
+        launcher = CloudflareTunnelLauncher(port=8000)
+        launcher._previous_webhook_url = "https://example.com/api/webhook/handler"
+
+        path = launcher._resolve_agent_path()
+        assert path == "/api/webhook/handler"
+
+    def test_resolve_agent_path_default(self) -> None:
+        """Should use default /api/agent when no other source available."""
+        launcher = CloudflareTunnelLauncher(port=8000)
+        # No explicit path and no previous webhook
+
+        path = launcher._resolve_agent_path()
+        assert path == "/api/agent"
+
+    def test_resolve_agent_path_explicit_overrides_previous_webhook(self) -> None:
+        """Explicit path should take precedence over previous webhook path."""
+        launcher = CloudflareTunnelLauncher(
+            port=8000,
+            agent_path="/explicit/path",
+        )
+        launcher._previous_webhook_url = "https://example.com/previous/path"
+
+        path = launcher._resolve_agent_path()
+        assert path == "/explicit/path"
+
+    def test_resolve_agent_path_previous_webhook_no_path(self) -> None:
+        """Should use default if previous webhook has no path."""
+        launcher = CloudflareTunnelLauncher(port=8000)
+        launcher._previous_webhook_url = "https://example.com"
+
+        path = launcher._resolve_agent_path()
+        # urlparse returns empty string for path in this case
+        assert path == "/api/agent"
+
+    def test_resolve_agent_path_previous_webhook_root_path(self) -> None:
+        """Should use root path from previous webhook."""
+        launcher = CloudflareTunnelLauncher(port=8000)
+        launcher._previous_webhook_url = "https://example.com/"
+
+        path = launcher._resolve_agent_path()
+        assert path == "/"
 
 
 # =============================================================================
@@ -374,6 +452,57 @@ class TestTunnelCliParsing:
         assert args.agent_id == "ag-123"
         assert args.api_key == "key-456"
 
+    def test_tunnel_parser_agent_path(self) -> None:
+        """Should accept --agent-path argument."""
+        from layercode_gym.cli import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "tunnel",
+                "--port",
+                "8000",
+                "--agent-path",
+                "/custom/api/endpoint",
+            ]
+        )
+
+        assert args.agent_path == "/custom/api/endpoint"
+
+    def test_tunnel_parser_agent_path_default(self) -> None:
+        """Should default agent_path to None."""
+        from layercode_gym.cli import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(["tunnel", "--port", "8000"])
+
+        assert args.agent_path is None
+
+    def test_tunnel_parser_agent_path_with_webhook_options(self) -> None:
+        """Should accept --agent-path together with webhook options."""
+        from layercode_gym.cli import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "tunnel",
+                "--port",
+                "8000",
+                "--unsafe-update-webhook",
+                "--agent-id",
+                "ag-123",
+                "--api-key",
+                "key-456",
+                "--agent-path",
+                "/api/voice-agent",
+            ]
+        )
+
+        assert args.unsafe_update_webhook is True
+        assert args.agent_id == "ag-123"
+        assert args.api_key == "key-456"
+        assert args.agent_path == "/api/voice-agent"
+
     def test_tunnel_parser_custom_config(self) -> None:
         """Should accept custom configuration options."""
         from layercode_gym.cli import create_parser
@@ -457,6 +586,7 @@ class TestRunTunnelValidation:
             unsafe_update_webhook=False,
             agent_id=None,
             api_key=None,
+            agent_path=None,
         )
 
         with pytest.raises(SystemExit) as exc_info:
@@ -479,6 +609,7 @@ class TestRunTunnelValidation:
             unsafe_update_webhook=False,
             agent_id=None,
             api_key=None,
+            agent_path=None,
         )
 
         # Should pass validation and fail at cloudflared check
@@ -506,6 +637,7 @@ class TestRunTunnelValidation:
             unsafe_update_webhook=True,
             agent_id=None,
             api_key="test-key",
+            agent_path=None,
         )
 
         with (
@@ -531,6 +663,7 @@ class TestRunTunnelValidation:
             unsafe_update_webhook=True,
             agent_id="ag-123",
             api_key=None,
+            agent_path=None,
         )
 
         with (
@@ -558,6 +691,17 @@ class TestRunTunnelValidation:
             assert agent_id == "ag-from-env"
             assert api_key == "key-from-env"
 
+    def test_run_tunnel_uses_env_var_for_agent_path(self) -> None:
+        """Should use LAYERCODE_AGENT_PATH environment variable."""
+        import os
+
+        with patch.dict(
+            os.environ,
+            {"LAYERCODE_AGENT_PATH": "/env/api/path"},
+        ):
+            agent_path = os.environ.get("LAYERCODE_AGENT_PATH")
+            assert agent_path == "/env/api/path"
+
 
 # =============================================================================
 # Tests for webhook update flow
@@ -584,7 +728,7 @@ class TestWebhookUpdateFlow:
             patch("layercode_gym.tunnel.get_agent", return_value=mock_agent),
             patch("layercode_gym.tunnel.update_agent"),
         ):
-            await launcher._update_webhook("https://new.trycloudflare.com/api/agent")
+            await launcher._update_webhook("https://new.trycloudflare.com")
 
         assert launcher._previous_webhook_url == "https://original.example.com/webhook"
 
@@ -605,7 +749,7 @@ class TestWebhookUpdateFlow:
             patch("layercode_gym.tunnel.get_agent", return_value=mock_agent),
             patch("layercode_gym.tunnel.update_agent"),
         ):
-            await launcher._update_webhook("https://new.trycloudflare.com/api/agent")
+            await launcher._update_webhook("https://new.trycloudflare.com")
 
         assert launcher._previous_webhook_url is None
 
@@ -625,6 +769,117 @@ class TestWebhookUpdateFlow:
         ):
             # Should not raise
             await launcher._update_webhook("https://test.trycloudflare.com")
+
+    @pytest.mark.asyncio
+    async def test_update_webhook_composes_url_with_explicit_path(self) -> None:
+        """Should compose full webhook URL with explicit agent path."""
+        launcher = CloudflareTunnelLauncher(
+            port=8000,
+            agent_id="ag-test",
+            api_key="test-key",
+            update_webhook=True,
+            agent_path="/custom/api/endpoint",
+        )
+
+        mock_agent = MagicMock()
+        mock_agent.webhook_url = None
+
+        with (
+            patch("layercode_gym.tunnel.get_agent", return_value=mock_agent),
+            patch("layercode_gym.tunnel.update_agent") as mock_update,
+        ):
+            mock_update.return_value = mock_agent
+            await launcher._update_webhook("https://test.trycloudflare.com")
+
+            # Should compose tunnel URL + agent path
+            mock_update.assert_called_once_with(
+                "ag-test",
+                "test-key",
+                {"webhook_url": "https://test.trycloudflare.com/custom/api/endpoint"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_webhook_extracts_path_from_previous(self) -> None:
+        """Should extract path from previous webhook when no explicit path."""
+        launcher = CloudflareTunnelLauncher(
+            port=8000,
+            agent_id="ag-test",
+            api_key="test-key",
+            update_webhook=True,
+        )
+
+        mock_agent = MagicMock()
+        mock_agent.webhook_url = "https://old.example.com/api/voice-agent"
+
+        with (
+            patch("layercode_gym.tunnel.get_agent", return_value=mock_agent),
+            patch("layercode_gym.tunnel.update_agent") as mock_update,
+        ):
+            mock_update.return_value = mock_agent
+            await launcher._update_webhook("https://test.trycloudflare.com")
+
+            # Should use path from previous webhook
+            mock_update.assert_called_once_with(
+                "ag-test",
+                "test-key",
+                {"webhook_url": "https://test.trycloudflare.com/api/voice-agent"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_webhook_uses_default_path(self) -> None:
+        """Should use default /api/agent when no path source available."""
+        launcher = CloudflareTunnelLauncher(
+            port=8000,
+            agent_id="ag-test",
+            api_key="test-key",
+            update_webhook=True,
+        )
+
+        mock_agent = MagicMock()
+        mock_agent.webhook_url = None  # No previous webhook
+
+        with (
+            patch("layercode_gym.tunnel.get_agent", return_value=mock_agent),
+            patch("layercode_gym.tunnel.update_agent") as mock_update,
+        ):
+            mock_update.return_value = mock_agent
+            await launcher._update_webhook("https://test.trycloudflare.com")
+
+            # Should use default path
+            mock_update.assert_called_once_with(
+                "ag-test",
+                "test-key",
+                {"webhook_url": "https://test.trycloudflare.com/api/agent"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_webhook_handles_trailing_slash(self) -> None:
+        """Should not create double slashes when tunnel URL has trailing slash."""
+        launcher = CloudflareTunnelLauncher(
+            port=8000,
+            agent_id="ag-test",
+            api_key="test-key",
+            update_webhook=True,
+            agent_path="/api/agent",
+        )
+
+        mock_agent = MagicMock()
+        mock_agent.webhook_url = None
+
+        with (
+            patch("layercode_gym.tunnel.get_agent", return_value=mock_agent),
+            patch("layercode_gym.tunnel.update_agent") as mock_update,
+        ):
+            mock_update.return_value = mock_agent
+            # Tunnel URL with trailing slash
+            await launcher._update_webhook("https://test.trycloudflare.com/")
+
+            # Should not have double slash
+            mock_update.assert_called_once_with(
+                "ag-test",
+                "test-key",
+                {"webhook_url": "https://test.trycloudflare.com/api/agent"},
+            )
 
     @pytest.mark.asyncio
     async def test_restore_webhook_clears_if_no_previous(self) -> None:
