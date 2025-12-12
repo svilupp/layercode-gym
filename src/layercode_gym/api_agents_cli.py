@@ -181,6 +181,8 @@ def get_api_key(args: argparse.Namespace) -> str:
         )
         sys.exit(1)
 
+    # Type narrowing: api_key is guaranteed to be a non-empty string here
+    assert isinstance(api_key, str)
     return api_key
 
 

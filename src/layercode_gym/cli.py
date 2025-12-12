@@ -7,6 +7,7 @@ This CLI provides commands for testing and managing LayerCode voice agents.
 Commands:
     run          Run a conversation with a LayerCode voice agent
     api-agents   Manage LayerCode agents via REST API
+    tunnel       Start a Cloudflare tunnel with optional webhook update
 
 Run 'layercode-gym <command> --help' for more information on a command.
 """
@@ -178,6 +179,13 @@ def create_run_parser(
             "Header to send with the authorization request (repeatable). "
             "Format: KEY=VALUE. Example: --auth-header 'Authorization=Bearer token'"
         ),
+    )
+    server_group.add_argument(
+        "--request-timeout",
+        type=float,
+        metavar="SECONDS",
+        default=10.0,
+        help="Timeout in seconds for the authorization request (default: 10.0)",
     )
 
     # Conversation control
@@ -375,6 +383,109 @@ def create_api_agents_parser(
     return api_parser
 
 
+def create_tunnel_parser(
+    subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]",
+) -> argparse.ArgumentParser:
+    """Create the 'tunnel' subcommand parser."""
+
+    tunnel_parser = subparsers.add_parser(
+        "tunnel",
+        help="Start a Cloudflare tunnel with optional webhook update",
+        description=(
+            "Start a Cloudflare quick tunnel to expose a local port publicly.\n"
+            "Optionally update a LayerCode agent's webhook URL to the tunnel URL.\n"
+            "The webhook is automatically restored when the tunnel is stopped.\n\n"
+            "Requires cloudflared to be installed:\n"
+            "https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/"
+            "install-and-setup/installation/"
+        ),
+        epilog=(
+            "Examples:\n"
+            "  # Basic tunnel with port\n"
+            "  layercode-gym tunnel --port 8000\n"
+            "\n"
+            "  # Or specify full URL directly\n"
+            "  layercode-gym tunnel --url http://localhost:8000\n"
+            "\n"
+            "  # Auto-update agent webhook\n"
+            "  layercode-gym tunnel --port 8000 --unsafe-update-webhook\n"
+            "\n"
+            "  # Explicit agent ID override\n"
+            "  layercode-gym tunnel --port 8000 --agent-id ag-123456 --unsafe-update-webhook\n"
+            "\n"
+            "Environment Variables:\n"
+            "  LAYERCODE_AGENT_ID   - Default agent ID for --unsafe-update-webhook\n"
+            "  LAYERCODE_API_KEY    - API key for webhook updates\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    # Target arguments (either --url or --port)
+    target_group = tunnel_parser.add_argument_group(
+        "target (required)",
+        "Specify the local server to expose (use --url OR --port)",
+    )
+    target_group.add_argument(
+        "--url",
+        metavar="URL",
+        help="Full URL to expose (e.g., http://localhost:8000)",
+    )
+    target_group.add_argument(
+        "--port",
+        type=int,
+        metavar="PORT",
+        help="Local port to expose (uses --host, default: localhost)",
+    )
+
+    # Webhook update options
+    webhook_group = tunnel_parser.add_argument_group(
+        "webhook update options",
+        "Automatically update LayerCode agent webhook URL",
+    )
+    webhook_group.add_argument(
+        "--unsafe-update-webhook",
+        action="store_true",
+        help=(
+            "Automatically update agent webhook to tunnel URL. "
+            "WARNING: This modifies your agent's webhook configuration. "
+            "Only use with development/test agents."
+        ),
+    )
+    webhook_group.add_argument(
+        "--agent-id",
+        metavar="ID",
+        help=("LayerCode agent ID to update. Default: LAYERCODE_AGENT_ID env var"),
+    )
+    webhook_group.add_argument(
+        "--api-key",
+        metavar="KEY",
+        help=(
+            "LayerCode API key for webhook updates. Default: LAYERCODE_API_KEY env var"
+        ),
+    )
+
+    # Tunnel configuration
+    config_group = tunnel_parser.add_argument_group(
+        "tunnel configuration",
+        "Customize tunnel behavior",
+    )
+    config_group.add_argument(
+        "--host",
+        default="localhost",
+        metavar="HOST",
+        help="Local host to tunnel to (default: localhost)",
+    )
+    config_group.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0,
+        metavar="SECONDS",
+        help="Timeout waiting for tunnel to establish (default: 30)",
+    )
+
+    return tunnel_parser
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the main argument parser with subcommands."""
 
@@ -385,7 +496,8 @@ def create_parser() -> argparse.ArgumentParser:
             "\n"
             "Commands:\n"
             "  run          Run a conversation with a LayerCode voice agent\n"
-            "  api-agents   Manage LayerCode agents via REST API"
+            "  api-agents   Manage LayerCode agents via REST API\n"
+            "  tunnel       Start a Cloudflare tunnel with optional webhook update"
         ),
         epilog=(
             "Examples:\n"
@@ -395,11 +507,11 @@ def create_parser() -> argparse.ArgumentParser:
             "  # Run with AI agent persona\n"
             "  layercode-gym run --agent --persona-intent 'Book a flight to NYC'\n"
             "\n"
+            "  # Start a tunnel with auto-webhook update\n"
+            "  layercode-gym tunnel --port 8000 --unsafe-update-webhook\n"
+            "\n"
             "  # List all agents in your account\n"
             "  layercode-gym api-agents list\n"
-            "\n"
-            "  # Update agent webhook for CI testing\n"
-            "  layercode-gym api-agents update --agent-id ag-123 --webhook-url https://test.com\n"
             "\n"
             "Run 'layercode-gym <command> --help' for more information on a command.\n"
             "\n"
@@ -417,6 +529,7 @@ def create_parser() -> argparse.ArgumentParser:
     # Add subcommand parsers
     create_run_parser(subparsers)
     create_api_agents_parser(subparsers)
+    create_tunnel_parser(subparsers)
 
     return parser
 
@@ -636,6 +749,7 @@ async def run_conversation(args: argparse.Namespace) -> None:
         print(f"  Agent ID: {settings.agent_id or '(from env)'}", file=sys.stderr)
         print(f"  Output Dir: {settings.output_root}", file=sys.stderr)
         print(f"  Max Turns: {args.max_turns or 'unlimited'}", file=sys.stderr)
+        print(f"  Request Timeout: {args.request_timeout}s", file=sys.stderr)
         print(file=sys.stderr)
 
     # Create client and run
@@ -643,7 +757,7 @@ async def run_conversation(args: argparse.Namespace) -> None:
 
     try:
         print("Starting conversation...", file=sys.stderr)
-        conversation_id = await client.run()
+        conversation_id = await client.run(request_timeout=args.request_timeout)
         print(f"\nConversation completed: {conversation_id}", file=sys.stderr)
         print(f"Saved to: {settings.output_root / conversation_id}", file=sys.stderr)
     except KeyboardInterrupt:
@@ -743,6 +857,72 @@ def handle_api_agents(args: argparse.Namespace) -> int:
         return 1
 
 
+async def run_tunnel(args: argparse.Namespace) -> None:
+    """Run the tunnel command."""
+    import os
+
+    from layercode_gym.tunnel import CloudflareTunnelLauncher
+
+    # Validate that either --url or --port is provided
+    if not args.url and not args.port:
+        print(
+            "Error: Either --url or --port is required",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Resolve agent_id and api_key from args or environment
+    agent_id = args.agent_id or os.environ.get("LAYERCODE_AGENT_ID")
+    api_key = args.api_key or os.environ.get("LAYERCODE_API_KEY")
+
+    # Validate requirements for webhook update
+    if args.unsafe_update_webhook:
+        if not agent_id:
+            print(
+                "Error: --unsafe-update-webhook requires --agent-id or "
+                "LAYERCODE_AGENT_ID env var",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not api_key:
+            print(
+                "Error: --unsafe-update-webhook requires --api-key or "
+                "LAYERCODE_API_KEY env var",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    # Create tunnel launcher
+    launcher = CloudflareTunnelLauncher(
+        url=args.url,
+        port=args.port,
+        host=args.host,
+        agent_id=agent_id,
+        api_key=api_key,
+        update_webhook=args.unsafe_update_webhook,
+    )
+
+    try:
+        # Start tunnel
+        await launcher.start(timeout_seconds=args.timeout)
+
+        # Wait forever (until Ctrl+C)
+        print("\nTunnel running. Press Ctrl+C to stop.", file=sys.stderr)
+        while True:
+            await asyncio.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\n\nShutting down tunnel...", file=sys.stderr)
+    except RuntimeError as e:
+        print(f"\nError: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"\nUnexpected error: {e}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        await launcher.stop()
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     """Main entry point for the CLI."""
 
@@ -766,6 +946,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         asyncio.run(run_conversation(args))
     elif args.command == "api-agents":
         sys.exit(handle_api_agents(args))
+    elif args.command == "tunnel":
+        asyncio.run(run_tunnel(args))
     else:
         # No command specified, show help
         parser.print_help()

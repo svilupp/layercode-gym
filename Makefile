@@ -12,7 +12,7 @@ help:
 	@echo "  make format      - Format code with ruff"
 	@echo "  make lint        - Lint code with ruff (check only)"
 	@echo "  make lint-fix    - Lint and auto-fix issues with ruff"
-	@echo "  make typecheck   - Run mypy type checking"
+	@echo "  make typecheck   - Run ty type checking"
 	@echo "  make test        - Run pytest tests"
 	@echo "  make check       - Run format + lint + typecheck"
 	@echo "  make check-all   - Run format + lint + typecheck + tests"
@@ -45,10 +45,10 @@ lint-fix:
 	@echo "Linting and fixing code with ruff..."
 	uv run ruff check --fix .
 
-# Type check with mypy (strict mode on src only, examples are for demonstration)
+# Type check with ty
 typecheck:
-	@echo "Type checking with mypy..."
-	uv run mypy src/
+	@echo "Type checking with ty..."
+	uv run ty check src/ tests/
 
 # Run tests with pytest
 test:
