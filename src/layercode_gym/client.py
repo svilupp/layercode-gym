@@ -9,7 +9,7 @@ import asyncio
 import base64
 import json
 from collections.abc import AsyncIterator
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import httpx
 from websockets.asyncio.client import connect
@@ -44,6 +44,7 @@ from .simulator.protocols import (
     UserRequest,
     UserResponse,
     UserSimulatorProtocol,
+    WaitContext,
 )
 from .storage import ConversationStorage
 from .utils.audio import (
@@ -51,6 +52,9 @@ from .utils.audio import (
     ensure_mono_pcm16,
     load_audio,
 )
+
+if TYPE_CHECKING:
+    from .turn_dispatch.protocols import SmartTurnClassifier, TurnDecision
 
 
 class WebSocketConnection(Protocol):
@@ -106,6 +110,9 @@ class LayercodeClient:
         data_processor: Processor for response.data events (converts to text for AI context)
         playback_ack_delay: Delay before acknowledging playback completion
         assistant_idle_timeout: Seconds of silence before triggering user turn
+        max_wait_seconds: Maximum wait time for wait responses (safety cap)
+        enable_smart_turn_taking: If True, use AI classifier to decide when to respond
+        smart_turn_classifier: Custom classifier (auto-created if None and enabled)
     """
 
     simulator: UserSimulatorProtocol
@@ -117,6 +124,9 @@ class LayercodeClient:
     assistant_idle_timeout: float = (
         3.0  # Seconds of silence before triggering user turn
     )
+    max_wait_seconds: float = 300.0  # 5 minute safety cap for wait responses
+    enable_smart_turn_taking: bool = False  # Opt-in to AI classifier
+    smart_turn_classifier: "SmartTurnClassifier | None" = None
 
     _assistant_state: AssistantState = field(default_factory=AssistantState)
     _latest_user_text: str = ""
@@ -130,6 +140,21 @@ class LayercodeClient:
     _user_turn_event: asyncio.Event = field(default_factory=asyncio.Event)
     _user_turn_in_progress: bool = False
     _accumulated_data: list[dict[str, Any]] = field(default_factory=list)
+    _last_audio_received_at: datetime | None = None
+    # Track accumulated assistant text for wait/yield pattern
+    _accumulated_assistant_text: list[str] = field(default_factory=list)
+    # Wait context for current assistant turn
+    _wait_context: WaitContext = field(default_factory=WaitContext)
+    # Smart turn-taking wait tracking
+    _smart_turn_consecutive_waits: int = 0
+    _smart_turn_total_wait_seconds: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Initialize smart turn classifier if enabled."""
+        if self.enable_smart_turn_taking and self.smart_turn_classifier is None:
+            from .turn_dispatch.smart_turn import SmartTurnClassifier
+
+            object.__setattr__(self, "smart_turn_classifier", SmartTurnClassifier())
 
     async def run(
         self,
@@ -300,6 +325,8 @@ class LayercodeClient:
                         )
                         self._assistant_state.reset(turn_id)
                     self._assistant_state.append_audio(audio_event["content"])
+                    # Track when we last received audio (for smart turn-taking)
+                    self._last_audio_received_at = datetime.now(timezone.utc)
                     # Reset idle timer every time we receive audio
                     self._schedule_assistant_idle_check()
                 case "response.text":
@@ -309,6 +336,8 @@ class LayercodeClient:
                         turn_id = text_event.get("turn_id") or f"turn_{id(text_event)}"
                         self._assistant_state.reset(turn_id)
                     self._assistant_state.append_text(text_event["content"])
+                    # Also accumulate for wait/yield pattern (persists across multiple idles)
+                    self._accumulated_assistant_text.append(text_event["content"])
                 case "user.transcript.interim_delta":
                     interim_event = cast(UserTranscriptInterimEvent, payload)
                     self._latest_user_text = interim_event["content"]
@@ -447,20 +476,29 @@ class LayercodeClient:
         storage: ConversationStorage,
         log: ConversationLog,
     ) -> None:
-        # First, acknowledge playback and finalize assistant message
-        await self._acknowledge_playback(websocket)
-        assistant_message, assistant_segment = self._finalise_assistant_message(
-            storage, log
-        )
-        self._pending_assistant_message = assistant_message
-        if assistant_segment is not None and self.settings.store_audio:
-            self._mix_segments.append(assistant_segment)
+        # Check smart turn-taking first (if enabled)
+        decision = await self._check_smart_turn_taking(log)
+        if decision is not None and not decision.should_respond:
+            logger.info(
+                "Smart turn-taking says wait, rechecking in %.1fs: %s",
+                decision.recheck_in_seconds,
+                decision.reason,
+            )
+            # Re-schedule check instead of taking turn
+            self._schedule_wait_timer(decision.recheck_in_seconds)
+            return
+
+        # Get FULL accumulated assistant text
+        full_text = "".join(self._accumulated_assistant_text)
+        if not full_text.strip():
+            logger.debug("No assistant content yet, skipping simulator")
+            return
 
         # Track user turn start time
         self._user_turn_started_at = datetime.now(timezone.utc)
         logger.info("Handling user turn, requesting response from simulator")
 
-        # Process accumulated response.data events into text for AI context
+        # Process ALL response.data events into text for AI context
         data_text: str | None = None
         if self._accumulated_data and self.data_processor:
             processed_parts = [self.data_processor(d) for d in self._accumulated_data]
@@ -469,23 +507,65 @@ class LayercodeClient:
             if non_empty:
                 data_text = "\n".join(non_empty)
 
+        # Build request with FULL buffer and wait context
         request = UserRequest(
             conversation_id=log.conversation_id,
             turn_id=turn_id,
-            text=self._latest_user_text or None,
-            data=tuple(self._accumulated_data),
+            text=full_text,  # FULL accumulated text
+            data=tuple(self._accumulated_data),  # ALL accumulated data
             data_text=data_text,
+            wait_context=self._wait_context
+            if self._wait_context.wait_count > 0
+            else None,
         )
+
         response = await self.simulator.get_response(request)
         logger.debug("Simulator response: %s", response)
-        self._latest_user_text = ""
-        self._accumulated_data.clear()  # Clear after processing
+
+        # Handle wait response - record in context and schedule timer
+        if response is not None and response.is_wait:
+            wait_seconds = min(response.wait_seconds or 0, self.max_wait_seconds)
+
+            # Record this wait in context
+            self._wait_context.record_wait(wait_seconds, len(full_text))
+
+            logger.info(
+                "Simulator requested wait (wait #%d, total %.1fs). "
+                "Scheduling idle timer to start in %.1fs",
+                self._wait_context.wait_count,
+                self._wait_context.total_wait_seconds,
+                wait_seconds,
+            )
+            # Schedule idle timer to start after wait period.
+            # This handles the case where assistant was actually done talking -
+            # after wait_seconds + idle_timeout, we'll get triggered again.
+            # If new content arrives before then, the idle timer gets rescheduled
+            # on content arrival (in response.audio/response.text handlers).
+            self._schedule_post_wait_idle_timer(wait_seconds)
+            return
+
         if response is None or not response.has_payload:
             logger.info("No payload from simulator, concluding conversation")
             await self._conclude_conversation(websocket, storage, log)
             return
+
+        # Normal response - finalize message, send, and clear everything
+        await self._acknowledge_playback(websocket)
+        assistant_message, assistant_segment = self._finalise_assistant_message(
+            storage, log
+        )
+        self._pending_assistant_message = assistant_message
+        if assistant_segment is not None and self.settings.store_audio:
+            self._mix_segments.append(assistant_segment)
+
         logger.info("Sending user payload to WebSocket")
         await self._send_user_payload(websocket, response)
+
+        # Clear ALL accumulators after sending response
+        self._accumulated_assistant_text.clear()
+        self._accumulated_data.clear()
+        self._wait_context.reset()
+        self._latest_user_text = ""
 
         # Record user turn timing
         user_turn_ended_at = datetime.now(timezone.utc)
@@ -706,6 +786,120 @@ class LayercodeClient:
         self._assistant_idle_task = loop.create_task(
             idle_timer(), name="assistant_idle_timer"
         )
+
+    def _schedule_wait_timer(self, seconds: float) -> None:
+        """Schedule a wait timer that will re-trigger user turn after delay.
+
+        Used when the simulator returns a wait response to avoid interrupting
+        a long-running assistant task.
+        """
+        self._cancel_assistant_idle_timer()
+        if seconds <= 0:
+            logger.debug("Invalid wait time (%s), triggering turn immediately", seconds)
+            self._user_turn_event.set()
+            return
+
+        logger.info("Scheduling wait timer for %.1f seconds", seconds)
+
+        async def wait_timer() -> None:
+            try:
+                await asyncio.sleep(seconds)
+                logger.info("Wait timer completed, triggering user turn")
+                self._user_turn_event.set()
+            except asyncio.CancelledError:
+                logger.debug("Wait timer cancelled")
+                return
+
+        loop = asyncio.get_running_loop()
+        self._assistant_idle_task = loop.create_task(wait_timer(), name="wait_timer")
+
+    def _schedule_post_wait_idle_timer(self, wait_seconds: float) -> None:
+        """Schedule idle timer to start after wait period.
+
+        After wait_seconds, starts the assistant idle timer. This ensures we get
+        triggered again even if assistant is done talking:
+        - If assistant sends more content during the wait, idle timer gets
+          rescheduled on content arrival (normal flow)
+        - If nothing arrives, after wait_seconds + idle_timeout we get triggered
+
+        Args:
+            wait_seconds: Seconds to wait before starting idle timer
+        """
+        self._cancel_assistant_idle_timer()
+        if wait_seconds <= 0:
+            logger.debug("Zero wait time, starting idle timer immediately")
+            self._schedule_assistant_idle_check()
+            return
+
+        logger.info("Scheduling post-wait idle timer in %.1f seconds", wait_seconds)
+
+        async def post_wait_timer() -> None:
+            try:
+                await asyncio.sleep(wait_seconds)
+                logger.info("Wait period complete, starting idle timer")
+                self._schedule_assistant_idle_check()
+            except asyncio.CancelledError:
+                logger.debug("Post-wait timer cancelled")
+                return
+
+        loop = asyncio.get_running_loop()
+        self._assistant_idle_task = loop.create_task(
+            post_wait_timer(), name="post_wait_timer"
+        )
+
+    def _seconds_since_last_audio(self) -> float:
+        """Calculate seconds since last audio was received."""
+        if self._last_audio_received_at is None:
+            return 0.0
+        delta = datetime.now(timezone.utc) - self._last_audio_received_at
+        return delta.total_seconds()
+
+    async def _check_smart_turn_taking(
+        self,
+        log: ConversationLog,
+    ) -> "TurnDecision | None":
+        """Check with smart turn classifier if we should respond.
+
+        Returns None if smart turn-taking is disabled.
+        Tracks consecutive waits and resets on respond.
+        """
+        if not self.enable_smart_turn_taking or self.smart_turn_classifier is None:
+            return None
+
+        from .turn_dispatch.protocols import TurnContext
+
+        # Collect recent assistant messages
+        assistant_messages: list[str] = []
+        for turn in reversed(log.turns[-3:]):
+            if turn.assistant_message and turn.assistant_message.content:
+                assistant_messages.insert(0, turn.assistant_message.content)
+        # Also include current (not yet finalized) assistant text
+        current_text = "".join(self._assistant_state.text_fragments)
+        if current_text:
+            assistant_messages.append(current_text)
+
+        context = TurnContext(
+            assistant_messages=tuple(assistant_messages),
+            last_user_text=self._latest_user_text or None,
+            seconds_since_last_audio=self._seconds_since_last_audio(),
+            conversation_turn_count=len(log.turns),
+            consecutive_wait_count=self._smart_turn_consecutive_waits,
+            total_wait_seconds=self._smart_turn_total_wait_seconds,
+        )
+
+        decision = await self.smart_turn_classifier.should_respond(context)
+
+        # Track wait state
+        if decision.should_respond:
+            # Reset on respond
+            self._smart_turn_consecutive_waits = 0
+            self._smart_turn_total_wait_seconds = 0.0
+        else:
+            # Track wait
+            self._smart_turn_consecutive_waits += 1
+            self._smart_turn_total_wait_seconds += decision.recheck_in_seconds
+
+        return decision
 
     def _cancel_assistant_idle_timer(self) -> None:
         """Cancel the assistant idle timer if it's running."""

@@ -7,7 +7,15 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from ..config import DEFAULT_SETTINGS, Settings
-from .protocols import TTSEngineProtocol, UserRequest, UserResponse
+from .protocols import (
+    AgentOutput,
+    RespondToAssistant,
+    TTSEngineProtocol,
+    UserRequest,
+    UserResponse,
+    WaitContext,
+    WaitForAssistant,
+)
 from .tts import OpenAITTSEngine
 
 
@@ -20,7 +28,7 @@ class Persona:
 class AgentRunResultProtocol(Protocol):
     """Protocol for PydanticAI agent run results."""
 
-    output: str  # For PydanticAI < 0.1, use .output; for >= 0.1, use .data
+    output: AgentOutput  # RespondToAssistant or WaitForAssistant
 
     def all_messages(self) -> list[Any]:
         """Return all messages from this run (for conversation history)."""
@@ -37,9 +45,14 @@ class AgentProtocol(Protocol):
         deps: Any | None = None,
         message_history: Sequence[Any] | None = None,
         **kwargs: Any,
-    ) -> AgentRunResultProtocol | str:
+    ) -> AgentRunResultProtocol:
         """Run the agent with a prompt and optional history."""
         ...
+
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -47,7 +60,8 @@ class AgentTurnStrategy:
     """Strategy for agent-driven user responses.
 
     Manages conversation turns using a PydanticAI agent and maintains
-    message history for multi-turn coherence.
+    message history for multi-turn coherence. Supports wait tool responses
+    that don't count as conversation turns.
 
     Attributes:
         agent: PydanticAI-compatible agent
@@ -57,6 +71,7 @@ class AgentTurnStrategy:
         tts_engine: TTS engine for audio generation (required if send_as_text=False)
         tts_kwargs: Optional TTS configuration (voice, instructions)
         settings: Settings instance for TTS configuration (uses DEFAULT_SETTINGS if None)
+        max_consecutive_waits: Maximum consecutive waits before forcing response
     """
 
     agent: AgentProtocol
@@ -66,8 +81,10 @@ class AgentTurnStrategy:
     tts_engine: TTSEngineProtocol | None
     tts_kwargs: Mapping[str, str | None] | None
     settings: Settings | None = None
+    max_consecutive_waits: int = 10
     _message_history: list[Any] = field(default_factory=list)
     _turns_completed: int = 0
+    _consecutive_waits: int = 0
 
     def __post_init__(self) -> None:
         """Validate configuration and auto-create TTS if needed."""
@@ -98,17 +115,22 @@ class AgentTurnStrategy:
             request: User request containing conversation context and assistant text
 
         Returns:
-            UserResponse with text and/or audio, or None if max_turns reached
+            UserResponse with text and/or audio, or None if max_turns reached.
+            May return a wait response (is_wait=True) if agent uses wait tool.
         """
         if self._turns_completed >= self.max_turns:
             return None
 
-        # Build prompt from request
-        prompt = request.text or "Continue the conversation."
+        # Safety: limit consecutive waits to prevent infinite loops
+        if self._consecutive_waits >= self.max_consecutive_waits:
+            logger.warning(
+                "Max consecutive waits (%d) reached, forcing response",
+                self.max_consecutive_waits,
+            )
+            self._consecutive_waits = 0
 
-        # Append processed data context if available (what the user "sees" on screen)
-        if request.data_text:
-            prompt = f"{prompt}\n\n[DATA RECEIVED]\n{request.data_text}"
+        # Build prompt with wait context and data
+        prompt = self._build_prompt(request)
 
         # Run agent with conversation history
         result = await self.agent.run(
@@ -117,15 +139,39 @@ class AgentTurnStrategy:
             message_history=self._message_history if self._message_history else None,
         )
 
-        # Extract output text
-        output_text = self._extract_output(result)
+        # Get output - guaranteed to be RespondToAssistant or WaitForAssistant by PydanticAI
+        output = result.output
 
-        # Update history with ALL messages from this run
-        # PydanticAI's result.all_messages() includes both user and assistant messages
-        if not isinstance(result, str):
-            self._message_history = result.all_messages()
+        # Handle WaitForAssistant - yield turn
+        if isinstance(output, WaitForAssistant):
+            self._consecutive_waits += 1
+            # Don't increment turns_completed - waits don't count as turns
+            # Don't update message_history - this isn't a real turn
+            # The wait context in the prompt tells the LLM that time has passed
 
+            logger.info(
+                "Agent requested wait of %.1fs (consecutive: %d, reason: %s)",
+                output.wait_seconds,
+                self._consecutive_waits,
+                output.reason or "none",
+            )
+            return UserResponse(
+                text=None,
+                audio_path=None,
+                data=(),
+                wait_seconds=output.wait_seconds,
+            )
+
+        # Handle RespondToAssistant - send message
+        assert isinstance(output, RespondToAssistant)
+        output_text = output.message
+
+        # Normal response - reset consecutive waits counter
+        self._consecutive_waits = 0
         self._turns_completed += 1
+
+        # Update history ONLY for actual responses
+        self._message_history = result.all_messages()
 
         # Return text or audio response
         if self.send_as_text:
@@ -145,23 +191,74 @@ class AgentTurnStrategy:
         )
         return UserResponse(text=output_text, audio_path=audio_path, data=())
 
-    @staticmethod
-    def _extract_output(result: AgentRunResultProtocol | str) -> str:
-        """Extract string output from agent result.
+    def _build_prompt(self, request: UserRequest) -> str:
+        """Build prompt with full assistant message and wait context.
+
+        The prompt includes:
+        1. Wait context (if we've waited) - tells LLM time has passed
+        2. Data from response.data events (if any)
+        3. Full accumulated assistant text
 
         Args:
-            result: Agent result or string
+            request: User request with assistant text, data, and wait context
 
         Returns:
-            Output text
-
-        Raises:
-            TypeError: If output is not a string
+            Formatted prompt string for the agent
         """
-        if isinstance(result, str):
-            return result
-        output = result.output
-        if not isinstance(output, str):  # pragma: no cover - defensive
-            msg = "Agent output must be a string"
-            raise TypeError(msg)
-        return output
+        parts: list[str] = []
+
+        # Add wait context if we've waited during this turn
+        if request.wait_context and request.wait_context.wait_count > 0:
+            parts.extend(self._format_wait_context(request.wait_context, request.text))
+            parts.append("")
+
+        # Add processed data if present (tool outputs, displays, etc.)
+        if request.data_text:
+            parts.append("<assistant_data>")
+            parts.append(request.data_text)
+            parts.append("</assistant_data>")
+            parts.append("")
+
+        # Add FULL assistant text
+        if request.text:
+            parts.append(request.text)
+        elif not request.data_text:
+            # No content at all - shouldn't happen but handle gracefully
+            parts.append("(No assistant message)")
+
+        return "\n".join(parts)
+
+    def _format_wait_context(
+        self, ctx: WaitContext, current_text: str | None
+    ) -> list[str]:
+        """Format wait context for inclusion in prompt.
+
+        Args:
+            ctx: Wait context with count and timing info
+            current_text: Current accumulated text (to check for new content)
+
+        Returns:
+            List of lines for the wait context block
+        """
+        lines: list[str] = []
+        lines.append("<wait_context>")
+        lines.append(f"You have waited {ctx.wait_count} time(s) during this turn.")
+        lines.append(f"Total wait time: ~{ctx.total_wait_seconds:.0f} seconds.")
+
+        # Check if new content arrived since last wait
+        current_len = len(current_text) if current_text else 0
+        if ctx.has_new_content(current_len):
+            lines.append("New content has arrived since your last wait.")
+        else:
+            lines.append("No new content has arrived since your last wait.")
+
+        lines.append("")
+        lines.append(
+            "IMPORTANT: The assistant message below may contain earlier 'please wait'"
+        )
+        lines.append(
+            "requests that have ALREADY been fulfilled. Focus on the END of the message"
+        )
+        lines.append("to determine the current state.")
+        lines.append("</wait_context>")
+        return lines

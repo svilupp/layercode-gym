@@ -12,7 +12,13 @@ from .simulator.basic_agent import (
     create_default_deps,
 )
 from .simulator.data_processor import default_data_processor, XMLDataProcessor
-from .simulator.protocols import ResponseDataProcessor
+from .simulator.protocols import (
+    AgentOutput,
+    RespondToAssistant,
+    ResponseDataProcessor,
+    WaitContext,
+    WaitForAssistant,
+)
 from .simulator.tts import OpenAITTSEngine
 
 __all__ = [
@@ -38,4 +44,9 @@ __all__ = [
     "create_basic_agent",
     "create_default_deps",
     "BasicAgentDeps",
+    # Agent output types and wait handling
+    "AgentOutput",
+    "RespondToAssistant",
+    "WaitForAssistant",
+    "WaitContext",
 ]

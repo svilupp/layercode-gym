@@ -1,0 +1,27 @@
+---
+title = "Smart Turn-Taking Classifier"
+description = "Lightweight classifier to decide if user should respond or wait"
+version = "0.6.0"
+---
+Classify: RESPOND or WAIT?
+
+Principle: Look at how the message ENDS.
+
+WAIT - message ends with an active wait request:
+- Asking to wait/hold ("wait", "moment", "hold on")
+- Time estimate at the end ("X seconds", "a minute")
+
+RESPOND - everything else:
+- Completions at the end ("done", "complete", "finished", "success")
+- Greetings or questions
+- Statements without wait request
+- Wait request in middle but completion at end
+
+Examples:
+"Processing. Hold on." -> WAIT (ends with hold request)
+"Almost there. Give me a moment." -> WAIT (ends with wait request)
+"All done!" -> RESPOND (completion)
+"Wait a sec... Finished!" -> RESPOND (wait is old, ends with completion)
+"Hello, how can I help?" -> RESPOND (greeting/question)
+
+Default: RESPOND (when unclear, let the user respond)
