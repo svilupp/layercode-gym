@@ -262,6 +262,115 @@ simulator = UserSimulator.from_agent(
 
 ---
 
+## Testing Long-Running Operations
+
+When your voice agent performs operations that take time (API calls, database queries, file processing), the AI simulator uses wait handling to behave realistically.
+
+### How Wait Handling Works
+
+The AI agent simulator automatically detects when to wait based on the assistant's message:
+
+```python
+# The assistant says: "Processing your request... please wait about 10 seconds."
+# The AI simulator will:
+# 1. Recognize this as a wait scenario
+# 2. Return WaitForAssistant(wait_seconds=12)  # 10s + 20% buffer
+# 3. System waits, then calls simulator again with updated message
+# 4. If assistant says "Done! Here are your results:", simulator responds normally
+```
+
+### Example: Testing a Delay-Based Agent
+
+```python
+from layercode_gym import LayercodeClient, UserSimulator, Persona
+
+# Create an AI persona that will naturally wait
+simulator = UserSimulator.from_agent(
+    persona=Persona(
+        background_context="You are testing a data processing system",
+        intent="You want to process a large dataset and get the results"
+    ),
+    model="openai:gpt-5-mini",
+    max_turns=5
+)
+
+# The conversation might go:
+# User: "Please process my dataset"
+# Assistant: "Processing your dataset... this will take about 15 seconds."
+# [AI simulator waits ~18 seconds]
+# Assistant: "Done! Your dataset has 1,234 records processed."
+# User: "Great, can you show me the summary?"
+
+client = LayercodeClient(simulator=simulator)
+await client.run()
+```
+
+### Debugging Wait Behavior
+
+Enable debug logging to see wait decisions:
+
+```python
+import logging
+logging.getLogger("layercode_gym").setLevel(logging.DEBUG)
+
+# You'll see logs like:
+# DEBUG: Simulator requested wait (wait #1, total 12.0s). Scheduling idle timer in 12.0s
+# DEBUG: Wait context: waited 1 time(s), new content arrived: True
+```
+
+### Custom Wait Logic
+
+For advanced scenarios, implement a custom simulator:
+
+```python
+from layercode_gym.simulator import (
+    UserSimulatorProtocol,
+    UserRequest,
+    UserResponse,
+    WaitContext
+)
+
+class SmartWaitSimulator(UserSimulatorProtocol):
+    def __init__(self, max_total_wait: float = 60.0):
+        self.max_total_wait = max_total_wait
+
+    async def get_response(self, request: UserRequest) -> UserResponse | None:
+        text = request.text or ""
+        wait_ctx = request.wait_context
+
+        # Check if we've waited too long overall
+        if wait_ctx and wait_ctx.total_wait_seconds >= self.max_total_wait:
+            return UserResponse(
+                text="I've been waiting a while. Is everything okay?",
+                audio_path=None,
+                data=()
+            )
+
+        # Detect if assistant is still processing
+        if any(phrase in text.lower() for phrase in ["please wait", "processing", "one moment"]):
+            # Check if this is new content or same as before
+            if wait_ctx and not wait_ctx.has_new_content(len(text)):
+                # No new content after waiting - wait a bit more
+                return UserResponse(
+                    text=None, audio_path=None, data=(),
+                    wait_seconds=15.0
+                )
+            # New content but still processing
+            return UserResponse(
+                text=None, audio_path=None, data=(),
+                wait_seconds=10.0
+            )
+
+        # Assistant is done - respond normally
+        return UserResponse(
+            text="Thanks for the update!",
+            audio_path=None,
+            data=()
+        )
+```
+
+---
+
 ## Audio Processing
 
 ### Background Noise Injection

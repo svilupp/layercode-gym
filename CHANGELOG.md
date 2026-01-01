@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.7.0 - 2025-01-01
+
+### Added
+- Wait/yield pattern for AI personas testing long-running operations (API calls, browser automation)
+- Smart turn-taking with `enable_smart_turn_taking` option on `LayercodeClient`
+
+### Breaking Changes
+- **Custom agents must return `RespondToAssistant`/`WaitForAssistant` instead of `str`** - built-in agent handles this automatically
+
 ## 0.6.0 - 2025-12-12
 
 ### Added

@@ -424,6 +424,84 @@ async def evaluate(log):
 - Domain-specific output fields (e.g., `tone_score`, `accuracy_rating`)
 - Complex evaluation logic beyond simple criteria
 
+## Example 08: Long-Running Tasks with Wait Handling
+
+Test voice agents that perform time-consuming operations (browser automation, API calls, file processing).
+
+**File:** `examples/08_long_running_task.py`
+
+```python
+import asyncio
+from layercode_gym import LayercodeClient, UserSimulator, Persona
+
+async def main():
+    # Persona that triggers a long-running task
+    simulator = UserSimulator.from_agent(
+        persona=Persona(
+            background_context="You are a user testing a slow service.",
+            intent="Ask the assistant to help with something. Be patient when asked to wait.",
+        ),
+        max_turns=5,
+        send_as_text=True,
+        # enable_wait_tool=True is the default
+    )
+
+    client = LayercodeClient(
+        simulator=simulator,
+        # Wait up to 5 minutes for long-running tasks
+        max_wait_seconds=300.0,
+    )
+
+    conversation_id = await client.run()
+    print(f"Conversation completed: {conversation_id}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**How it works:**
+
+1. Assistant says: "Processing your request... please wait about 30 seconds."
+2. AI simulator recognizes wait scenario, returns `WaitForAssistant(wait_seconds=36)`
+3. System waits, then re-invokes simulator with updated assistant message
+4. When assistant finishes: "Done! Here are your results..."
+5. Simulator responds normally
+
+**Wait handling options:**
+
+```python
+# Option 1: Wait/Yield (default)
+# Agent decides when to wait based on assistant message
+simulator = UserSimulator.from_agent(
+    persona=persona,
+    enable_wait_tool=True,  # Default
+)
+
+# Option 2: Smart Turn-Taking (automatic detection)
+# AI classifier decides every ~5 seconds
+client = LayercodeClient(
+    simulator=simulator,
+    enable_smart_turn_taking=True,
+)
+
+# Option 3: Both (maximum reliability)
+simulator = UserSimulator.from_agent(
+    persona=persona,
+    enable_wait_tool=True,
+)
+client = LayercodeClient(
+    simulator=simulator,
+    enable_smart_turn_taking=True,
+    max_wait_seconds=300.0,
+)
+```
+
+**Use cases:**
+- Testing agents with browser automation
+- Testing agents that call slow APIs
+- Testing file processing workflows
+- Verifying agents handle long operations gracefully
+
 ## Advanced Examples
 
 ### Custom Turn Callback

@@ -15,6 +15,7 @@ Perfect for regression testing, load testing, and automated evaluation of your v
 ## Features
 
 - **Three User Simulator Types**: Fixed text, pre-recorded audio, or AI-driven personas
+- **Smart Wait Handling**: AI personas intelligently wait when assistants need processing time
 - **Captured Analytics**: Full transcripts with TTFAB, latency stats, and audio recordings
 - **LogFire Integration**: Real-time observability and debugging
 - **Batch Testing**: Run hundreds of conversations concurrently
@@ -210,6 +211,7 @@ The `examples/` directory contains ready-to-run scripts:
 - **05_batch_evaluation.py** - Run multiple conversations concurrently
 - **06_outdoor_shop_eval.py** - Custom data processor with domain-specific criteria
 - **07_custom_judge.py** - Build your own judge with custom PydanticAI output types
+- **08_long_running_task.py** - Testing agents with wait handling for slow operations
 
 Run any example:
 ```bash

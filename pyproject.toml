@@ -1,6 +1,6 @@
 [project]
 name = "layercode-gym"
-version = "0.6.0"
+version = "0.7.0"
 description = "Utilities for simulating LayerCode voice agent conversations"
 readme = "README.md"
 license = "MIT"
@@ -35,27 +35,12 @@ layercode-gym = "layercode_gym.cli:main"
 requires = ["uv_build>=0.9.6,<0.10.0"]
 build-backend = "uv_build"
 
-[tool.mypy]
-python_version = "3.13"
-strict = true
-plugins = [
-    "pydantic.mypy",
-]
-
-[[tool.mypy.overrides]]
-module = [
-    "pydub",
-    "pydub.*",
-]
-ignore_missing_imports = true
-
 [dependency-groups]
 dev = [
-    "mypy>=1.18.2",
     "ruff>=0.8.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
-    "ty>=0.0.1a33",
+    "ty>=0.0.8",
 ]
 docs = [
     "mkdocs>=1.6.0",

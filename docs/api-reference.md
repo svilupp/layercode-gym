@@ -588,9 +588,10 @@ Request data passed to user simulator.
 
 - `conversation_id: str` - Unique conversation ID
 - `turn_id: str | None` - Current turn identifier
-- `text: str | None` - Transcribed text from assistant's last response
-- `data: Sequence[dict]` - Raw `response.data` payloads from current turn
+- `text: str | None` - Full accumulated text from assistant (all content since last user response)
+- `data: Sequence[dict]` - All accumulated `response.data` payloads from current turn
 - `data_text: str | None` - Processed data as human-readable text (if data_processor set)
+- `wait_context: WaitContext | None` - Context about waits during this turn (None if no waits yet)
 
 ### UserResponse
 
@@ -602,9 +603,72 @@ Response from user simulator.
 
 **Attributes:**
 
-- `text: str` - User message text
+- `text: str | None` - User message text
 - `audio_path: Path | None` - Optional path to audio file
-- `data: tuple` - Additional data (reserved for future use)
+- `data: Sequence[dict]` - Data payloads to send
+- `wait_seconds: float | None` - If set, skip this turn and wait (2-300 seconds)
+
+**Properties:**
+
+- `has_payload: bool` - True if response has content to send
+- `is_wait: bool` - True if this is a wait response
+
+### WaitContext
+
+```python
+from layercode_gym.simulator import WaitContext
+```
+
+Context about waiting during the current assistant turn. Used by AI agent simulators to track wait state and make informed decisions.
+
+**Attributes:**
+
+- `wait_count: int` - Number of times we've waited during this turn
+- `total_wait_seconds: float` - Total seconds waited during this turn
+- `last_text_len: int` - Text length at last wait (to detect new content)
+
+**Methods:**
+
+- `record_wait(wait_seconds, current_text_len)` - Record a wait event
+- `has_new_content(current_text_len) -> bool` - Check if new content arrived since last wait
+- `reset()` - Reset context for new turn
+
+### WaitForAssistant
+
+```python
+from layercode_gym.simulator import WaitForAssistant
+```
+
+Signal from AI agent to wait for the assistant to finish before responding. Use when the assistant says "please wait", "processing...", or gives a time estimate.
+
+**Attributes:**
+
+- `wait_seconds: float` - How long to wait (2-300 seconds). Add ~20% buffer to assistant's estimate.
+- `reason: str | None` - Optional reason for waiting (for debugging/logging)
+
+**Example:**
+
+```python
+WaitForAssistant(wait_seconds=10, reason="Assistant said processing takes ~8 seconds")
+```
+
+### RespondToAssistant
+
+```python
+from layercode_gym.simulator import RespondToAssistant
+```
+
+Signal from AI agent to send a message to the assistant.
+
+**Attributes:**
+
+- `message: str` - The message to send
+
+**Example:**
+
+```python
+RespondToAssistant(message="Yes, I'd like to proceed with the order.")
+```
 
 ### ConversationLog
 
@@ -682,7 +746,10 @@ from layercode_gym.simulator import (
     UserSimulatorProtocol,
     TTSEngineProtocol,
     UserRequest,
-    UserResponse
+    UserResponse,
+    WaitContext,
+    WaitForAssistant,
+    RespondToAssistant
 )
 from layercode_gym.callbacks import (
     TurnCallback,

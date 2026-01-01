@@ -106,6 +106,47 @@ simulator = UserSimulator.from_agent(
 - Exploratory testing of edge cases
 - Evaluating agent personality and tone
 
+### Wait Handling for AI Agents
+
+When testing voice agents that perform long-running operations (API calls, database queries, file processing), the AI simulator needs to wait intelligently rather than responding immediately.
+
+**How it works:**
+
+1. Assistant says "Please wait while I process that..." or "This takes about 10 seconds..."
+2. AI simulator returns `WaitForAssistant(wait_seconds=12)` instead of responding
+3. System waits, then re-invokes the simulator with the updated assistant message
+4. Simulator sees the full accumulated message and decides: wait more or respond
+
+**The `WaitContext`:**
+
+When waits occur, the simulator receives context about its waiting history:
+
+```python
+# In your custom simulator or agent
+def handle_request(request: UserRequest):
+    if request.wait_context:
+        print(f"Waited {request.wait_context.wait_count} times")
+        print(f"Total wait: {request.wait_context.total_wait_seconds}s")
+
+        if request.wait_context.has_new_content(len(request.text or "")):
+            print("New content arrived since last wait!")
+```
+
+**When to wait vs respond:**
+
+| Wait when... | Respond when... |
+|--------------|-----------------|
+| "Please wait", "one moment" | Results delivered |
+| "Processing...", "Loading..." | Question asked to you |
+| Time estimate given ("~10 seconds") | Task completed |
+| Clearly still working | Information you can act on |
+
+**Built-in safety:**
+
+- Maximum wait time: 300 seconds per wait
+- Maximum consecutive waits: configurable (prevents infinite loops)
+- Minimum wait: 2 seconds
+
 ### TTS Auto-Creation
 
 When using `send_as_text=False`, LayerCode Gym automatically creates an OpenAI TTS engine:

@@ -142,6 +142,8 @@ class UserSimulator(UserSimulatorProtocol):
         settings: Settings | None = None,
         pre_hook: SimulatorHook | None = None,
         post_hook: SimulatorHook | None = None,
+        enable_wait_tool: bool = True,
+        max_consecutive_waits: int = 10,
     ) -> "UserSimulator":
         """Create simulator with AI agent.
 
@@ -164,12 +166,17 @@ class UserSimulator(UserSimulatorProtocol):
             tts_kwargs: TTS configuration (voice, instructions)
             pre_hook: Optional pre-response hook for custom logic
             post_hook: Optional post-response hook for custom logic
+            enable_wait_tool: If True (default), agent can use wait_for_assistant
+                tool to wait for long-running assistant tasks. Set to False for
+                legacy behavior where agent always responds immediately.
+            max_consecutive_waits: Maximum consecutive waits before forcing a
+                response (default: 10). Safety limit to prevent infinite loops.
 
         Returns:
             Configured UserSimulator instance
 
         Examples:
-            Simple usage with defaults:
+            Simple usage with defaults (wait tool enabled):
             >>> sim = UserSimulator.from_agent()
 
             Custom persona:
@@ -182,18 +189,28 @@ class UserSimulator(UserSimulatorProtocol):
             ...     max_turns=5
             ... )
 
+            Testing long-running tasks:
+            >>> sim = UserSimulator.from_agent(
+            ...     persona=Persona(
+            ...         background_context="Customer returning an order",
+            ...         intent="Complete return for order GAL-1926"
+            ...     ),
+            ...     max_turns=15,
+            ...     send_as_text=True,
+            ... )
+
+            Disable wait tool for legacy behavior:
+            >>> sim = UserSimulator.from_agent(
+            ...     persona=Persona(...),
+            ...     enable_wait_tool=False,
+            ... )
+
             Power user with custom agent:
             >>> from pydantic_ai import Agent
             >>> my_agent = Agent("anthropic:claude-3-5-sonnet", deps_type=MyDeps)
             >>> sim = UserSimulator.from_agent(
             ...     agent=my_agent,
             ...     deps=MyDeps(persona=..., custom_field=...)
-            ... )
-
-            Custom model with default agent:
-            >>> sim = UserSimulator.from_agent(
-            ...     model="anthropic:claude-3-5-sonnet",
-            ...     send_as_text=True
             ... )
         """
         # Import here to avoid circular imports
@@ -202,7 +219,9 @@ class UserSimulator(UserSimulatorProtocol):
         # Resolve agent: use provided or create default
         if agent is None:
             resolved_model = model or "openai:gpt-5-mini"
-            agent = create_basic_agent(resolved_model)
+            agent = create_basic_agent(
+                resolved_model, enable_wait_tool=enable_wait_tool
+            )
 
         # Resolve deps: use provided or create default
         if deps is None:
@@ -217,6 +236,7 @@ class UserSimulator(UserSimulatorProtocol):
             tts_engine=tts_engine,
             tts_kwargs=tts_kwargs,
             settings=settings,
+            max_consecutive_waits=max_consecutive_waits,
         )
 
         return cls(strategy=strategy, pre_hook=pre_hook, post_hook=post_hook)

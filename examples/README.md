@@ -60,6 +60,12 @@ Build your own judge with PydanticAI custom output types.
 uv run python examples/07_custom_judge.py
 ```
 
+### 08 - Long-Running Tasks
+Test agents with wait handling for slow operations.
+```bash
+uv run python examples/08_long_running_task.py
+```
+
 ### Run All
 ```bash
 uv run python examples/run_all.py

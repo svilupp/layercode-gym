@@ -6,9 +6,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import textprompts
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext
 
 from .agent import Persona
+from .protocols import AgentOutput, WaitForAssistant
+
+
+# Instructions appended when wait is disabled (overrides base prompt's wait option)
+WAIT_DISABLED_INSTRUCTIONS = """
+
+NOTE: WaitForAssistant is NOT available. You must always respond with RespondToAssistant(message="...").
+"""
 
 
 @dataclass
@@ -24,19 +32,27 @@ class BasicAgentDeps:
     template: textprompts.Prompt
 
 
-def create_basic_agent(model: str = "openai:gpt-5-mini") -> Agent[BasicAgentDeps, str]:
+def create_basic_agent(
+    model: str = "openai:gpt-5-mini",
+    enable_wait_tool: bool = True,
+) -> Agent[BasicAgentDeps, AgentOutput]:
     """Factory function to create the default basic agent.
 
     Args:
         model: Model string (e.g., "openai:gpt-5-mini", "anthropic:claude-sonnet-4-5")
+        enable_wait_tool: If True, agent can return WaitForAssistant to wait
+            for long-running assistant tasks. If False, agent must always respond
+            with RespondToAssistant (WaitForAssistant triggers retry). Default True.
 
     Returns:
-        Configured PydanticAI agent with system prompt injection
+        Configured PydanticAI agent with system prompt injection.
+        Output type is AgentOutput (RespondToAssistant | WaitForAssistant).
     """
-    agent: Agent[BasicAgentDeps, str] = Agent(
+    agent: Agent[BasicAgentDeps, AgentOutput] = Agent(
         model,
         deps_type=BasicAgentDeps,
-        output_type=str,
+        output_type=AgentOutput,
+        retries=3,  # Enable retries for validation/model retry errors
     )
 
     @agent.system_prompt
@@ -46,10 +62,31 @@ def create_basic_agent(model: str = "openai:gpt-5-mini") -> Agent[BasicAgentDeps
         persona = ctx.deps.persona
 
         # Format the template with persona fields
-        return template.prompt.format(
+        # Base prompt includes wait instructions - they're part of the core behavior
+        base = template.prompt.format(
             background_context=persona.background_context,
             intent=persona.intent,
         )
+
+        # When wait is disabled, append override notice
+        if not enable_wait_tool:
+            return base + WAIT_DISABLED_INSTRUCTIONS
+        return base
+
+    # When wait is disabled, reject WaitForAssistant and trigger retry
+    if not enable_wait_tool:
+
+        @agent.output_validator
+        def reject_wait(
+            ctx: RunContext[BasicAgentDeps], output: AgentOutput
+        ) -> AgentOutput:
+            """Reject WaitForAssistant when wait is disabled, triggering model retry."""
+            if isinstance(output, WaitForAssistant):
+                raise ModelRetry(
+                    "WaitForAssistant is not available in this context. "
+                    "You must respond with RespondToAssistant(message=...) instead."
+                )
+            return output
 
     return agent
 
