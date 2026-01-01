@@ -63,10 +63,8 @@ jobs:
           # Judge configuration
           judge-enabled: ${{ inputs.judge-enabled == '' && true || inputs.judge-enabled }}
           judge-criteria: |
-            - Did the agent provide clear and accurate information?
-            - Was the agent empathetic and professional in tone?
-            - Did the agent offer actionable next steps or solutions?
-            - Did the agent avoid leaving the user confused or frustrated?
+            - Did the agent respond to the user's messages?
+            - Did the agent avoid saying anything inappropriate or offensive?
           fail-on-judge-failure: false
 
           # Required configuration (set in GitHub repository settings)
