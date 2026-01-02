@@ -4,8 +4,6 @@
 [![Docs](https://github.com/svilupp/layercode-gym/actions/workflows/docs.yml/badge.svg)](https://github.com/svilupp/layercode-gym/actions/workflows/docs.yml)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://svilupp.github.io/layercode-gym)
 
-> **Warning (v0.1.0):** This toolkit is an early release and may contain bugs or breaking changes. Please test thoroughly before using in production.
-
 A testing toolkit for voice AI agents built on [Layercode.com](https://layercode.com). Quickly spin up a testing environment to run through hundreds of scenarios and understand how your agent will perform in production.
 
 **Note:** This is an unofficial, community-maintained project.
