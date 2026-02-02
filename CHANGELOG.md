@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.8.0 - 2025-01-XX
+
+### Fixed
+- Race condition in playback acknowledgment where turn_id could change during sleep
+- Premature WebSocket closure that could interrupt in-flight user messages
+- Lost final assistant message when conversation concludes via max_turns
+- Binary Event replaced with Queue for turn signals to prevent signal loss under load
+- Empty assistant turns no longer recorded when idle timeout fires before content arrives
+
 ## 0.7.0 - 2025-01-01
 
 ### Added
