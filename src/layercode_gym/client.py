@@ -137,7 +137,7 @@ class LayercodeClient:
     _turn_timings: list[TurnTiming] = field(default_factory=list)
     _user_turn_started_at: datetime | None = None
     _assistant_idle_task: asyncio.Task[None] | None = None
-    _user_turn_event: asyncio.Event = field(default_factory=asyncio.Event)
+    _user_turn_queue: asyncio.Queue[str] = field(default_factory=asyncio.Queue)
     _user_turn_in_progress: bool = False
     _accumulated_data: list[dict[str, Any]] = field(default_factory=list)
     _last_audio_received_at: datetime | None = None
@@ -196,15 +196,20 @@ class LayercodeClient:
                 self._turn_coordinator(ws, storage, conversation_log)
             )
 
-            # Wait for either task to complete
-            done, pending = await asyncio.wait(
-                {consumer_task, coordinator_task}, return_when=asyncio.FIRST_COMPLETED
-            )
+            # Wait for coordinator to finish (it controls conversation flow)
+            # Consumer will exit when websocket closes
+            try:
+                await coordinator_task
+            except asyncio.CancelledError:
+                pass
 
-            # Cancel pending tasks
-            for task in pending:
-                task.cancel()
-            await asyncio.gather(*pending, return_exceptions=True)
+            # Now cancel consumer if still running
+            if not consumer_task.done():
+                consumer_task.cancel()
+                try:
+                    await consumer_task
+                except asyncio.CancelledError:
+                    pass
 
         logger.info("WebSocket closed")
         if not self._finalised:
@@ -285,18 +290,18 @@ class LayercodeClient:
         storage: ConversationStorage,
         log: ConversationLog,
     ) -> None:
-        """Wait for user turn events and handle them."""
+        """Wait for user turn events from the queue and handle them."""
         logger.info("Starting turn coordinator")
         while not self._stop_requested:
             try:
-                await self._user_turn_event.wait()
+                turn_id = await self._user_turn_queue.get()
             except asyncio.CancelledError:
                 break
-            self._user_turn_event.clear()
-            logger.info("User turn event received, handling turn")
+            logger.info("Processing user turn from queue: %s", turn_id)
             self._user_turn_in_progress = True
-            await self._handle_user_turn("user_turn", websocket, storage, log)
+            await self._handle_user_turn(turn_id, websocket, storage, log)
             self._user_turn_in_progress = False
+            self._user_turn_queue.task_done()
 
     async def _consume_events(
         self,
@@ -358,7 +363,8 @@ class LayercodeClient:
                     self._accumulated_data.append(data_event["content"])
                 case _:
                     logger.error("Unhandled event: %s", event_type)
-        await websocket.close()
+        # Don't close here - let the context manager in run() handle cleanup
+        logger.info("Event consumer finished")
 
     async def _on_turn_start(
         self,
@@ -382,15 +388,21 @@ class LayercodeClient:
         logger.info("User turn.start received (unexpected from LayerCode)")
 
     async def _acknowledge_playback(self, websocket: WebSocketConnection) -> None:
-        if self._assistant_state.turn_id is None:
+        # Capture turn_id BEFORE any async operations to avoid race condition
+        # where new events arrive during sleep and update turn_id
+        turn_id_to_ack = self._assistant_state.turn_id
+        if turn_id_to_ack is None:
             return
+
         await asyncio.sleep(self.playback_ack_delay)
+
         event: TriggerResponseAudioFinishedEvent = {
             "type": "trigger.response.audio.replay_finished",
-            "turn_id": self._assistant_state.turn_id,
+            "turn_id": turn_id_to_ack,  # Use captured value
             "reason": "completed",
         }
         await websocket.send(json.dumps(event))
+        logger.debug("Sent playback ack for turn_id=%s", turn_id_to_ack)
 
     def _finalise_assistant_message(
         self,
@@ -398,6 +410,20 @@ class LayercodeClient:
         log: ConversationLog,
     ) -> tuple[Message | None, AudioSegment | None]:
         if self._assistant_state.turn_id is None:
+            return None, None
+
+        # Check if we actually have any content
+        has_audio = bool(self._assistant_state.audio_chunks)
+        has_text = bool(self._assistant_state.text_fragments)
+
+        if not has_audio and not has_text:
+            logger.warning(
+                "Finalizing assistant turn %s with no content "
+                "(idle timeout before content arrived)",
+                self._assistant_state.turn_id,
+            )
+            # Reset state and return None - don't record empty turns
+            self._assistant_state.turn_id = None
             return None, None
 
         # Record timing for this assistant turn
@@ -717,6 +743,17 @@ class LayercodeClient:
         log: ConversationLog,
     ) -> None:
         self._stop_requested = True
+
+        # Record any pending final assistant message before concluding
+        if self._pending_assistant_message is not None:
+            final_turn = ConversationTurn(
+                user_message=None,
+                assistant_message=self._pending_assistant_message,
+            )
+            log.append_turn(final_turn)
+            self._pending_assistant_message = None
+            logger.info("Recorded final assistant message before concluding")
+
         # Finalize stats and save transcript before callback
         await self._finalize(storage, log)
         # Run callback BEFORE closing websocket to prevent task cancellation
@@ -777,7 +814,7 @@ class LayercodeClient:
             try:
                 await asyncio.sleep(self.assistant_idle_timeout)
                 logger.info("Assistant idle timeout reached, triggering user turn")
-                self._user_turn_event.set()
+                self._user_turn_queue.put_nowait("idle_timeout")
             except asyncio.CancelledError:
                 logger.debug("Idle timer cancelled")
                 return
@@ -796,7 +833,7 @@ class LayercodeClient:
         self._cancel_assistant_idle_timer()
         if seconds <= 0:
             logger.debug("Invalid wait time (%s), triggering turn immediately", seconds)
-            self._user_turn_event.set()
+            self._user_turn_queue.put_nowait("wait_immediate")
             return
 
         logger.info("Scheduling wait timer for %.1f seconds", seconds)
@@ -805,7 +842,7 @@ class LayercodeClient:
             try:
                 await asyncio.sleep(seconds)
                 logger.info("Wait timer completed, triggering user turn")
-                self._user_turn_event.set()
+                self._user_turn_queue.put_nowait("wait_timeout")
             except asyncio.CancelledError:
                 logger.debug("Wait timer cancelled")
                 return

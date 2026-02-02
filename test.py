@@ -8,7 +8,7 @@ class CityLocation(BaseModel):
     country: str
 
 
-agent = Agent('openai:gpt-4.1-nano', output_type=CityLocation)
-result = agent.run_sync('Where were the olympics held in 2012?')
+agent = Agent("openai:gpt-4.1-nano", output_type=CityLocation)
+result = agent.run_sync("Where were the olympics held in 2012?")
 print(result.all_messages())
-#> city='London' country='United Kingdom'
+# > city='London' country='United Kingdom'
