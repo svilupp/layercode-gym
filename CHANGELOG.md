@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## 0.8.0 - 2025-01-XX
+## 0.8.0 - 2025-02-02
 
 ### Fixed
 - Race condition in playback acknowledgment where turn_id could change during sleep
@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Binary Event replaced with Queue for turn signals to prevent signal loss under load
 - Empty assistant turns no longer recorded when idle timeout fires before content arrives
 
-## 0.7.0 - 2025-01-01
+## 0.7.0 - 2026-01-01
 
 ### Added
 - Wait/yield pattern for AI personas testing long-running operations (API calls, browser automation)
