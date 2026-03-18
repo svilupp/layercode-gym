@@ -91,7 +91,9 @@ class CloudflareTunnelLauncher:
         self.update_webhook = update_webhook
         self._agent_path = agent_path
         self._extra_cloudflared_args: list[str] = (
-            extra_cloudflared_args if extra_cloudflared_args is not None else ["--config", "/dev/null"]
+            extra_cloudflared_args
+            if extra_cloudflared_args is not None
+            else ["--config", "/dev/null"]
         )
 
         self._process: asyncio.subprocess.Process | None = None

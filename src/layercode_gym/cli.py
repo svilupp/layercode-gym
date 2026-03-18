@@ -915,7 +915,9 @@ async def run_tunnel(args: argparse.Namespace) -> None:
             sys.exit(1)
 
     # Parse any extra cloudflared flags; None means "use the library default" (["--no-config"])
-    extra_cloudflared_args = args.cloudflared_args.split() if args.cloudflared_args is not None else None
+    extra_cloudflared_args = (
+        args.cloudflared_args.split() if args.cloudflared_args is not None else None
+    )
 
     # Create tunnel launcher
     launcher = CloudflareTunnelLauncher(

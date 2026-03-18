@@ -9,9 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.9.0 - 2026-03-18
 
 ### Fixed
-- `_extract_webhook_url` now checks both `config.plugins[n].options.url` (current API format) and `config.endpoint` (legacy format), fixing false "Webhook update failed" errors caused by a vendor API schema change
-- `tunnel` command now passes `--no-config` to cloudflared by default, preventing local `~/.cloudflared/config.yml` named-tunnel ingress rules from silently routing all requests to `http_status:404`; override with `--cloudflared-args`
-- `--cloudflared-args` CLI flag and `extra_cloudflared_args` constructor param let users override the cloudflared global flags; defaults to `["--no-config"]` which prevents `~/.cloudflared/config.yml` named-tunnel ingress rules from silently routing quick-tunnel requests to `http_status:404`
+- `_extract_webhook_url` now reads from `config.plugins[n].options.url` with fallback to `config.endpoint`, fixing false "Webhook update failed" errors after a vendor API schema change
+- `tunnel` now passes `--config /dev/null` by default, preventing `~/.cloudflared/config.yml` ingress rules from silently returning 404 on quick tunnels
+
+### Added
+- `--cloudflared-args` CLI flag and `extra_cloudflared_args` constructor param to pass custom flags to `cloudflared tunnel`; replaces the default when provided
 
 ## 0.8.0 - 2025-02-02
 
