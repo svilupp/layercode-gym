@@ -541,6 +541,14 @@ def create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
+    from importlib.metadata import version as pkg_version
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {pkg_version('layercode-gym')}",
+    )
+
     subparsers = parser.add_subparsers(
         dest="command",
         metavar="<command>",
@@ -954,6 +962,11 @@ async def run_tunnel(args: argparse.Namespace) -> None:
 
 def main(argv: Sequence[str] | None = None) -> None:
     """Main entry point for the CLI."""
+    import warnings
+
+    # pydub 0.25.1 uses invalid regex escape sequences (e.g. \() that Python 3.12+
+    # flags as SyntaxWarning. The library is unmaintained; suppress at import time.
+    warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
 
     # If no arguments provided, use sys.argv
     if argv is None:
