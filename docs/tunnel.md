@@ -109,7 +109,7 @@ layercode-gym tunnel (--port PORT | --url URL) [OPTIONS]
 |--------|---------|-------------|
 | `--host HOST` | `localhost` | Local host to tunnel to |
 | `--timeout SECONDS` | `30` | Timeout waiting for tunnel to establish |
-| `--use-cloudflared-config` | off | Load `~/.cloudflared/config.yml` (see [note below](#cloudflared-config-file)) |
+| `--cloudflared-args ARGS` | — | Flags injected before `tunnel --url` (default: `--no-config`); replaces the default entirely when provided |
 
 ---
 
@@ -162,15 +162,22 @@ layercode-gym tunnel --port 8000 \
 
 ## Cloudflared Config File
 
-By default, `layercode-gym tunnel` passes `--no-config` to cloudflared so that your local `~/.cloudflared/config.yml` is **ignored**. This prevents named-tunnel ingress rules for other projects from overriding the quick-tunnel target and causing silent 404s.
+By default, `layercode-gym tunnel` passes `--no-config` to cloudflared so that your local `~/.cloudflared/config.yml` is ignored. This prevents named-tunnel ingress rules for other projects from causing silent 404s on quick tunnels.
 
-If you intentionally want cloudflared to load your config file (e.g. you have custom ingress rules that should apply), pass `--use-cloudflared-config`:
+Use `--cloudflared-args` to **replace** this default with any flags you need:
 
 ```bash
-layercode-gym tunnel --port 8000 --use-cloudflared-config
+# Keep --no-config and add extra flags
+layercode-gym tunnel --port 8000 --cloudflared-args "--no-config --logfile /tmp/cf.log"
+
+# Load your ~/.cloudflared/config.yml instead (drop --no-config)
+layercode-gym tunnel --port 8000 --cloudflared-args ""
+
+# Any other cloudflared global flags
+layercode-gym tunnel --port 8000 --cloudflared-args "--retries 5"
 ```
 
-> **Note:** If you use `--use-cloudflared-config` and your config has a catch-all `service: http_status:404` rule (the cloudflared default), requests that don't match a hostname rule will return 404 even though the tunnel appears to be running. Make sure your config's ingress rules forward the right hostnames to your local server.
+> **Note:** Whatever you pass to `--cloudflared-args` **replaces** the default `--no-config` entirely. If you want `--no-config` alongside extra flags, include it explicitly.
 
 ---
 

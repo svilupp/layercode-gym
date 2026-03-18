@@ -60,7 +60,7 @@ class CloudflareTunnelLauncher:
         api_key: str | None = None,
         update_webhook: bool = False,
         agent_path: str | None = None,
-        no_config: bool = True,
+        extra_cloudflared_args: list[str] | None = None,
     ) -> None:
         """Initialize the tunnel launcher.
 
@@ -72,9 +72,12 @@ class CloudflareTunnelLauncher:
             api_key: LayerCode API key for webhook updates
             update_webhook: Whether to auto-update agent webhook
             agent_path: Path to append to tunnel URL for webhook (e.g., /api/agent)
-            no_config: Pass --no-config to cloudflared, ignoring ~/.cloudflared/config.yml
-                (default: True). Set to False only if you need your local cloudflared
-                config file to be respected.
+            extra_cloudflared_args: Extra flags injected into `cloudflared tunnel` after
+                the subcommand and before `--url`. Defaults to ["--config", "/dev/null"]
+                which prevents ~/.cloudflared/config.yml from overriding the quick-tunnel
+                target with named-tunnel ingress rules (causing silent 404s).
+                Pass an explicit list to override — e.g. [] to load your config file,
+                or ["--config", "/dev/null", "--loglevel", "info"] to add extra flags.
         """
         if url:
             self.target_url = url
@@ -87,7 +90,9 @@ class CloudflareTunnelLauncher:
         self.api_key = api_key
         self.update_webhook = update_webhook
         self._agent_path = agent_path
-        self._no_config = no_config
+        self._extra_cloudflared_args: list[str] = (
+            extra_cloudflared_args if extra_cloudflared_args is not None else ["--config", "/dev/null"]
+        )
 
         self._process: asyncio.subprocess.Process | None = None
         self._tunnel_url: str | None = None
@@ -138,13 +143,21 @@ class CloudflareTunnelLauncher:
         print(f"Starting Cloudflare tunnel to {self.target_url}...", file=sys.stderr)
         print(f"Tunnel logs: {self.log_file_path.absolute()}", file=sys.stderr)
 
-        # Start cloudflared process
-        cloudflared_args = ["cloudflared"]
-        if self._no_config:
-            cloudflared_args.append("--no-config")
-        cloudflared_args += ["tunnel", "--url", self.target_url, "--loglevel", "debug"]
+        # Start cloudflared process.
+        # extra_cloudflared_args are injected after "tunnel" and before "--url ...".
+        # Default is ["--config", "/dev/null"] to prevent ~/.cloudflared/config.yml from
+        # routing quick-tunnel requests to http_status:404 via named-tunnel ingress rules.
+        cloudflared_cmd = [
+            "cloudflared",
+            "tunnel",
+            *self._extra_cloudflared_args,
+            "--url",
+            self.target_url,
+            "--loglevel",
+            "debug",
+        ]
         self._process = await asyncio.create_subprocess_exec(
-            *cloudflared_args,
+            *cloudflared_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
