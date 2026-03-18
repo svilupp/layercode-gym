@@ -491,6 +491,17 @@ def create_tunnel_parser(
         metavar="SECONDS",
         help="Timeout waiting for tunnel to establish (default: 30)",
     )
+    config_group.add_argument(
+        "--use-cloudflared-config",
+        action="store_true",
+        default=False,
+        help=(
+            "Load ~/.cloudflared/config.yml instead of ignoring it. "
+            "By default cloudflared is started with --no-config so that local named-tunnel "
+            "ingress rules (e.g. for other projects) do not override the quick-tunnel target. "
+            "Pass this flag only if you intentionally rely on your local cloudflared config."
+        ),
+    )
 
     return tunnel_parser
 
@@ -911,6 +922,7 @@ async def run_tunnel(args: argparse.Namespace) -> None:
         api_key=api_key,
         update_webhook=args.unsafe_update_webhook,
         agent_path=agent_path,
+        no_config=not args.use_cloudflared_config,
     )
 
     try:

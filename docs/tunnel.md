@@ -109,6 +109,7 @@ layercode-gym tunnel (--port PORT | --url URL) [OPTIONS]
 |--------|---------|-------------|
 | `--host HOST` | `localhost` | Local host to tunnel to |
 | `--timeout SECONDS` | `30` | Timeout waiting for tunnel to establish |
+| `--use-cloudflared-config` | off | Load `~/.cloudflared/config.yml` (see [note below](#cloudflared-config-file)) |
 
 ---
 
@@ -159,11 +160,25 @@ layercode-gym tunnel --port 8000 \
 
 ---
 
+## Cloudflared Config File
+
+By default, `layercode-gym tunnel` passes `--no-config` to cloudflared so that your local `~/.cloudflared/config.yml` is **ignored**. This prevents named-tunnel ingress rules for other projects from overriding the quick-tunnel target and causing silent 404s.
+
+If you intentionally want cloudflared to load your config file (e.g. you have custom ingress rules that should apply), pass `--use-cloudflared-config`:
+
+```bash
+layercode-gym tunnel --port 8000 --use-cloudflared-config
+```
+
+> **Note:** If you use `--use-cloudflared-config` and your config has a catch-all `service: http_status:404` rule (the cloudflared default), requests that don't match a hostname rule will return 404 even though the tunnel appears to be running. Make sure your config's ingress rules forward the right hostnames to your local server.
+
+---
+
 ## How It Works
 
 ### Tunnel Lifecycle
 
-1. **Start**: `cloudflared tunnel --url http://localhost:PORT` subprocess launches
+1. **Start**: `cloudflared --no-config tunnel --url http://localhost:PORT` subprocess launches
 2. **URL Detection**: Parses tunnel URL from cloudflared output
 3. **Webhook Update** (if enabled):
    - Fetches current webhook URL from LayerCode API
