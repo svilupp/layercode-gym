@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.9.1 - 2026-03-18
+
+### Fixed
+- Silenced `SyntaxWarning` spam from unmaintained `pydub` dependency on Python 3.12+
+- Added `--version` flag to CLI
+
 ## 0.9.0 - 2026-03-18
 
 ### Fixed

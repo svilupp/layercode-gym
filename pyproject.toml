@@ -1,6 +1,6 @@
 [project]
 name = "layercode-gym"
-version = "0.9.0"
+version = "0.9.1"
 description = "Utilities for simulating LayerCode voice agent conversations"
 readme = "README.md"
 license = "MIT"
@@ -32,7 +32,7 @@ layercode-gym = "layercode_gym.cli:main"
 "Documentation" = "https://svilupp.github.io/layercode-gym"
 
 [build-system]
-requires = ["uv_build>=0.9.6,<0.10.0"]
+requires = ["uv_build>=0.10.9,<0.11.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
