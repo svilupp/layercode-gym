@@ -491,6 +491,18 @@ def create_tunnel_parser(
         metavar="SECONDS",
         help="Timeout waiting for tunnel to establish (default: 30)",
     )
+    config_group.add_argument(
+        "--cloudflared-args",
+        metavar="ARGS",
+        default=None,
+        help=(
+            "Extra flags for 'cloudflared tunnel', injected before --url, space-separated. "
+            "Defaults to '--config /dev/null' (prevents ~/.cloudflared/config.yml from "
+            "causing silent 404s via named-tunnel ingress rules). Override to replace the "
+            "default entirely — e.g. pass '' to load your config file, or "
+            "'--config /dev/null --loglevel info' to keep it and add extra flags."
+        ),
+    )
 
     return tunnel_parser
 
@@ -902,6 +914,11 @@ async def run_tunnel(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
 
+    # Parse any extra cloudflared flags; None means "use the library default" (["--no-config"])
+    extra_cloudflared_args = (
+        args.cloudflared_args.split() if args.cloudflared_args is not None else None
+    )
+
     # Create tunnel launcher
     launcher = CloudflareTunnelLauncher(
         url=args.url,
@@ -911,6 +928,7 @@ async def run_tunnel(args: argparse.Namespace) -> None:
         api_key=api_key,
         update_webhook=args.unsafe_update_webhook,
         agent_path=agent_path,
+        extra_cloudflared_args=extra_cloudflared_args,
     )
 
     try:

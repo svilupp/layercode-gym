@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.9.0 - 2026-03-18
+
+### Fixed
+- `_extract_webhook_url` now reads from `config.plugins[n].options.url` with fallback to `config.endpoint`, fixing false "Webhook update failed" errors after a vendor API schema change
+- `tunnel` now passes `--config /dev/null` by default, preventing `~/.cloudflared/config.yml` ingress rules from silently returning 404 on quick tunnels
+
+### Added
+- `--cloudflared-args` CLI flag and `extra_cloudflared_args` constructor param to pass custom flags to `cloudflared tunnel`; replaces the default when provided
+
 ## 0.8.0 - 2025-02-02
 
 ### Fixed

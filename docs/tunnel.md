@@ -109,6 +109,7 @@ layercode-gym tunnel (--port PORT | --url URL) [OPTIONS]
 |--------|---------|-------------|
 | `--host HOST` | `localhost` | Local host to tunnel to |
 | `--timeout SECONDS` | `30` | Timeout waiting for tunnel to establish |
+| `--cloudflared-args ARGS` | — | Flags injected before `tunnel --url` (default: `--no-config`); replaces the default entirely when provided |
 
 ---
 
@@ -159,11 +160,32 @@ layercode-gym tunnel --port 8000 \
 
 ---
 
+## Cloudflared Config File
+
+By default, `layercode-gym tunnel` passes `--no-config` to cloudflared so that your local `~/.cloudflared/config.yml` is ignored. This prevents named-tunnel ingress rules for other projects from causing silent 404s on quick tunnels.
+
+Use `--cloudflared-args` to **replace** this default with any flags you need:
+
+```bash
+# Keep --no-config and add extra flags
+layercode-gym tunnel --port 8000 --cloudflared-args "--no-config --logfile /tmp/cf.log"
+
+# Load your ~/.cloudflared/config.yml instead (drop --no-config)
+layercode-gym tunnel --port 8000 --cloudflared-args ""
+
+# Any other cloudflared global flags
+layercode-gym tunnel --port 8000 --cloudflared-args "--retries 5"
+```
+
+> **Note:** Whatever you pass to `--cloudflared-args` **replaces** the default `--no-config` entirely. If you want `--no-config` alongside extra flags, include it explicitly.
+
+---
+
 ## How It Works
 
 ### Tunnel Lifecycle
 
-1. **Start**: `cloudflared tunnel --url http://localhost:PORT` subprocess launches
+1. **Start**: `cloudflared --no-config tunnel --url http://localhost:PORT` subprocess launches
 2. **URL Detection**: Parses tunnel URL from cloudflared output
 3. **Webhook Update** (if enabled):
    - Fetches current webhook URL from LayerCode API
