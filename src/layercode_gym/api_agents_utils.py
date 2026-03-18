@@ -47,10 +47,27 @@ class Agent:
 def _extract_webhook_url(data: dict[str, Any]) -> str | None:
     """Extract webhook URL from API response.
 
-    The webhook URL is stored at config.endpoint in the LayerCode API.
+    Tries multiple locations to handle API schema changes:
+    1. config.plugins[n].options.url (use == "agent.webhook") - current API format
+    2. config.endpoint - legacy API format
     """
     config = data.get("config", {})
-    return config.get("endpoint") if isinstance(config, dict) else None
+    if not isinstance(config, dict):
+        return None
+
+    # Current format: webhook URL lives in the agent.webhook plugin
+    for plugin in config.get("plugins", []):
+        if isinstance(plugin, dict) and plugin.get("use") == "agent.webhook":
+            url = plugin.get("options", {}).get("url")
+            if url:
+                return url
+
+    # Legacy format: webhook URL at config.endpoint
+    legacy = config.get("endpoint")
+    if legacy:
+        return legacy
+
+    return None
 
 
 def get_agent(agent_id: str, api_key: str) -> Agent:
